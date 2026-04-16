@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Live</title>
+
+<script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:system-ui;
+  background:#0f172a;
+  color:white;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+}
+
+header{
+  padding:12px;
+  background:#1e293b;
+  text-align:center;
+  font-weight:bold;
+}
+
+#chat{
+  flex:1;
+  overflow:auto;
+  padding:10px;
+}
+
+.msg{
+  max-width:80%;
+  padding:10px;
+  margin:6px 0;
+  border-radius:12px;
+  background:#1e293b;
+}
+
+.me{
+  background:#4f46e5;
+  margin-left:auto;
+}
+
+.user{
+  font-size:10px;
+  opacity:.7;
+}
+
+#inputArea{
+  display:flex;
+  gap:5px;
+  padding:10px;
+  background:#020617;
+}
+
+input{
+  flex:1;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+}
+
+button{
+  padding:10px;
+  background:#22c55e;
+  border:none;
+  border-radius:8px;
+  color:white;
+}
+
+#nickModal{
+  position:fixed;
+  inset:0;
+  background:black;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+#nickBox{
+  background:#1e293b;
+  padding:20px;
+  border-radius:12px;
+  text-align:center;
+}
+</style>
+
+</head>
+
+<body>
+
+<header>💬 Chat en vivo</header>
+
+<div id="chat"></div>
+
+<div id="inputArea">
+  <input id="msg" placeholder="Mensaje...">
+  <button onclick="send()">Enviar</button>
+</div>
+
+<div id="nickModal">
+  <div id="nickBox">
+    <h3>Tu nombre</h3>
+    <input id="nickInput" placeholder="Nick"><br><br>
+    <button onclick="start()">Entrar</button>
+  </div>
+</div>
+
+<script>
+const RELAYS=[
+ "wss://relay.damus.io",
+ "wss://nos.lol",
+ "wss://relay.snort.social"
+];
+
+const ROOM="chat-global-simple";
+
+let pool=new NostrTools.SimplePool();
+let sk=NostrTools.generatePrivateKey();
+let pk=NostrTools.getPublicKey(sk);
+
+let nick="";
+const chat=document.getElementById("chat");
+
+function add(user,text,me=false){
+ let d=document.createElement("div");
+ d.className="msg"+(me?" me":"");
+ d.innerHTML=`<div class="user">${user}</div>${text}`;
+ chat.appendChild(d);
+ chat.scrollTop=chat.scrollHeight;
+}
+
+function start(){
+ nick=document.getElementById("nickInput").value||"anon";
+ document.getElementById("nickModal").style.display="none";
+ load();
+}
+
+function load(){
+ let sub=pool.sub(RELAYS,[{
+  kinds:[1],
+  "#t":[ROOM],
+  since:Math.floor(Date.now()/1000)-3600
+ }]);
+
+ sub.on("event",ev=>{
+  try{
+   let data=JSON.parse(ev.content);
+   add(data.user,data.text,ev.pubkey===pk);
+  }catch{}
+ });
+}
+
+function send(){
+ let text=document.getElementById("msg").value;
+ if(!text)return;
+
+ let event={
+  kind:1,
+  pubkey:pk,
+  created_at:Math.floor(Date.now()/1000),
+  tags:[["t",ROOM]],
+  content:JSON.stringify({user:nick,text})
+ };
+
+ event.id=NostrTools.getEventHash(event);
+ event.sig=NostrTools.signEvent(event,sk);
+
+ pool.publish(RELAYS,event);
+
+ add(nick,text,true);
+ document.getElementById("msg").value="";
+}
+</script>
+
+</body>
+</html>
