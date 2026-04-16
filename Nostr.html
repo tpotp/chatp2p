@@ -1,181 +1,163 @@
 <!DOCTYPE html>
-
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Live</title>
-
-<script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
-
+<title>Chat en vivo</title>
 <style>
-body{
-  margin:0;
-  font-family:system-ui;
-  background:#0f172a;
-  color:white;
-  display:flex;
-  flex-direction:column;
-  height:100vh;
-}
-
-header{
-  padding:12px;
-  background:#1e293b;
-  text-align:center;
-  font-weight:bold;
-}
-
-#chat{
-  flex:1;
-  overflow:auto;
-  padding:10px;
-}
-
-.msg{
-  max-width:80%;
-  padding:10px;
-  margin:6px 0;
-  border-radius:12px;
-  background:#1e293b;
-}
-
-.me{
-  background:#4f46e5;
-  margin-left:auto;
-}
-
-.user{
-  font-size:10px;
-  opacity:.7;
-}
-
-#inputArea{
-  display:flex;
-  gap:5px;
-  padding:10px;
-  background:#020617;
-}
-
-input{
-  flex:1;
-  padding:10px;
-  border:none;
-  border-radius:8px;
-}
-
-button{
-  padding:10px;
-  background:#22c55e;
-  border:none;
-  border-radius:8px;
-  color:white;
-}
-
-#nickModal{
-  position:fixed;
-  inset:0;
-  background:black;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-#nickBox{
-  background:#1e293b;
-  padding:20px;
-  border-radius:12px;
-  text-align:center;
-}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui;background:#0f172a;color:white;display:flex;flex-direction:column;height:100vh}
+header{padding:12px;background:#1e293b;text-align:center;font-weight:bold;font-size:16px}
+#status{font-size:11px;color:#94a3b8;text-align:center;padding:4px;background:#0f172a}
+#chat{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
+.msg{max-width:80%;padding:10px 14px;border-radius:12px;background:#1e293b;word-break:break-word}
+.me{background:#4f46e5;margin-left:auto}
+.nick{font-size:10px;opacity:.6;margin-bottom:3px}
+.txt{font-size:14px}
+#inputArea{display:flex;gap:6px;padding:10px;background:#020617}
+#msgInput{flex:1;padding:10px 14px;border:none;border-radius:10px;background:#1e293b;color:white;font-size:14px;outline:none}
+#msgInput::placeholder{color:#64748b}
+#sendBtn{padding:10px 18px;background:#22c55e;border:none;border-radius:10px;color:white;font-weight:600;cursor:pointer}
+#sendBtn:disabled{background:#166534;cursor:not-allowed}
+#nickModal{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+#nickBox{background:#1e293b;padding:28px;border-radius:16px;text-align:center;width:280px}
+#nickBox h3{margin-bottom:16px;font-size:18px}
+#nickInput{width:100%;padding:10px;border:none;border-radius:8px;background:#0f172a;color:white;font-size:15px;text-align:center;outline:none;margin-bottom:14px}
+#enterBtn{width:100%;padding:10px;background:#4f46e5;border:none;border-radius:8px;color:white;font-size:15px;font-weight:600;cursor:pointer}
 </style>
-
 </head>
-
 <body>
-
 <header>💬 Chat en vivo</header>
-
+<div id="status">Conectando...</div>
 <div id="chat"></div>
-
 <div id="inputArea">
-  <input id="msg" placeholder="Mensaje...">
-  <button onclick="send()">Enviar</button>
+  <input id="msgInput" placeholder="Mensaje..." disabled>
+  <button id="sendBtn" disabled>Enviar</button>
 </div>
-
 <div id="nickModal">
   <div id="nickBox">
-    <h3>Tu nombre</h3>
-    <input id="nickInput" placeholder="Nick"><br><br>
-    <button onclick="start()">Entrar</button>
+    <h3>¿Cómo te llamas?</h3>
+    <input id="nickInput" placeholder="Tu nick" maxlength="24">
+    <button id="enterBtn">Entrar al chat</button>
   </div>
 </div>
 
-<script>
-const RELAYS=[
- "wss://relay.damus.io",
- "wss://nos.lol",
- "wss://relay.snort.social"
+<script type="module">
+import { generateSecretKey, getPublicKey, finalizeEvent } from 'https://esm.sh/nostr-tools@2/pure';
+import { SimplePool } from 'https://esm.sh/nostr-tools@2/pool';
+import { Relay } from 'https://esm.sh/nostr-tools@2/relay';
+
+const RELAYS = [
+  "wss://relay.damus.io",
+  "wss://nos.lol",
+  "wss://relay.snort.social",
+  "wss://relay.nostr.band"
 ];
+const ROOM = "chat-global-simple-v1";
 
-const ROOM="chat-global-simple";
+let pool = new SimplePool();
+let sk = generateSecretKey();
+let pk = getPublicKey(sk);
+let nick = "";
+let myEvents = new Set();
 
-let pool=new NostrTools.SimplePool();
-let sk=NostrTools.generatePrivateKey();
-let pk=NostrTools.getPublicKey(sk);
+const chat = document.getElementById("chat");
+const status = document.getElementById("status");
+const msgInput = document.getElementById("msgInput");
+const sendBtn = document.getElementById("sendBtn");
 
-let nick="";
-const chat=document.getElementById("chat");
-
-function add(user,text,me=false){
- let d=document.createElement("div");
- d.className="msg"+(me?" me":"");
- d.innerHTML=`<div class="user">${user}</div>${text}`;
- chat.appendChild(d);
- chat.scrollTop=chat.scrollHeight;
+function addMsg(user, text, isMe = false) {
+  const d = document.createElement("div");
+  d.className = "msg" + (isMe ? " me" : "");
+  d.innerHTML = `<div class="nick">${escHtml(user)}</div><div class="txt">${escHtml(text)}</div>`;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
 }
 
-function start(){
- nick=document.getElementById("nickInput").value||"anon";
- document.getElementById("nickModal").style.display="none";
- load();
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-function load(){
- let sub=pool.sub(RELAYS,[{
-  kinds:[1],
-  "#t":[ROOM],
-  since:Math.floor(Date.now()/1000)-3600
- }]);
-
- sub.on("event",ev=>{
-  try{
-   let data=JSON.parse(ev.content);
-   add(data.user,data.text,ev.pubkey===pk);
-  }catch{}
- });
+function setStatus(txt) {
+  status.textContent = txt;
 }
 
-function send(){
- let text=document.getElementById("msg").value;
- if(!text)return;
-
- let event={
-  kind:1,
-  pubkey:pk,
-  created_at:Math.floor(Date.now()/1000),
-  tags:[["t",ROOM]],
-  content:JSON.stringify({user:nick,text})
- };
-
- event.id=NostrTools.getEventHash(event);
- event.sig=NostrTools.signEvent(event,sk);
-
- pool.publish(RELAYS,event);
-
- add(nick,text,true);
- document.getElementById("msg").value="";
+async function connect() {
+  setStatus("Conectando a relays...");
+  
+  const since = Math.floor(Date.now() / 1000) - 3600;
+  
+  // Suscribirse a mensajes de la sala
+  const sub = pool.subscribeMany(
+    RELAYS,
+    [{ kinds: [1], "#t": [ROOM], since }],
+    {
+      onevent(ev) {
+        if (myEvents.has(ev.id)) return; // ya lo añadimos localmente
+        try {
+          const data = JSON.parse(ev.content);
+          if (data.user && data.text) {
+            const isMe = ev.pubkey === pk;
+            addMsg(data.user, data.text, isMe);
+          }
+        } catch {}
+      },
+      oneose() {
+        setStatus(`Conectado — ${RELAYS.length} relays`);
+        msgInput.disabled = false;
+        sendBtn.disabled = false;
+        msgInput.focus();
+      }
+    }
+  );
 }
+
+async function send() {
+  const text = msgInput.value.trim();
+  if (!text) return;
+  
+  const eventTemplate = {
+    kind: 1,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [["t", ROOM]],
+    content: JSON.stringify({ user: nick, text })
+  };
+  
+  const event = finalizeEvent(eventTemplate, sk);
+  myEvents.add(event.id);
+  
+  // Mostrar inmediatamente
+  addMsg(nick, text, true);
+  msgInput.value = "";
+  
+  // Publicar a todos los relays
+  try {
+    await Promise.any(pool.publish(RELAYS, event));
+    setStatus(`Enviado — ${RELAYS.length} relays`);
+  } catch {
+    setStatus("Error al enviar (sin relays disponibles)");
+  }
+}
+
+// Enter para enviar
+msgInput.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+sendBtn.addEventListener("click", send);
+
+// Modal de nick
+document.getElementById("enterBtn").addEventListener("click", () => {
+  const val = document.getElementById("nickInput").value.trim();
+  nick = val || "anon";
+  document.getElementById("nickModal").style.display = "none";
+  connect();
+});
+document.getElementById("nickInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("enterBtn").click();
+});
 </script>
-
 </body>
 </html>
