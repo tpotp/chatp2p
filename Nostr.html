@@ -3,75 +3,94 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat en vivo</title>
+<title>Chat v3</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui;background:#0f172a;color:white;display:flex;flex-direction:column;height:100vh}
-header{padding:12px;background:#1e293b;text-align:center;font-weight:bold}
-#status{font-size:11px;color:#94a3b8;text-align:center;padding:4px 8px;background:#020617}
-#debug{background:#020617;border-bottom:1px solid #1e3a5f;padding:5px 10px;font-size:10px;font-family:monospace;max-height:80px;overflow-y:auto;color:#38bdf8}
+header{padding:10px 14px;background:#1e293b;display:flex;align-items:center;justify-content:space-between}
+header span{font-weight:bold;font-size:15px}
+#relayDots{display:flex;gap:5px}
+.dot{width:8px;height:8px;border-radius:50%;background:#334155;transition:background .3s}
+.dot.ok{background:#22c55e}
+.dot.fail{background:#ef4444}
+#status{font-size:11px;color:#64748b;padding:4px 10px;background:#020617;text-align:center}
+#debug{background:#020617;border-bottom:1px solid #1e293b;padding:5px 10px;font-size:10px;font-family:monospace;max-height:90px;overflow-y:auto}
 #chat{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
-.msg{max-width:85%;padding:8px 12px;border-radius:10px;background:#1e293b}
-.me{background:#4f46e5;margin-left:auto}
-.nick{font-size:10px;opacity:.6;margin-bottom:2px}
-#inputArea{display:flex;gap:6px;padding:8px;background:#020617}
-#msgInput{flex:1;padding:9px 12px;border:none;border-radius:8px;background:#1e293b;color:white;font-size:14px;outline:none}
-#msgInput:disabled{opacity:.4}
-#sendBtn{padding:9px 16px;background:#22c55e;border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer}
+.msg{max-width:82%;padding:9px 13px;border-radius:12px;background:#1e293b;word-break:break-word}
+.msg.me{background:#4f46e5;margin-left:auto}
+.nick{font-size:10px;opacity:.55;margin-bottom:3px}
+.txt{font-size:14px;line-height:1.4}
+#inputArea{display:flex;gap:6px;padding:8px 10px;background:#020617}
+#msgInput{flex:1;padding:9px 13px;border:none;border-radius:9px;background:#1e293b;color:white;font-size:14px;outline:none}
+#msgInput:disabled{opacity:.35}
+#sendBtn{padding:9px 18px;background:#22c55e;border:none;border-radius:9px;color:white;font-weight:700;cursor:pointer;font-size:14px}
 #sendBtn:disabled{background:#14532d;cursor:not-allowed}
-#nickModal{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10}
-#nickBox{background:#1e293b;padding:24px;border-radius:14px;text-align:center;width:260px}
-#nickBox h3{margin-bottom:14px}
-#nickInput{width:100%;padding:9px;border:none;border-radius:7px;background:#0f172a;color:white;font-size:15px;text-align:center;outline:none;margin-bottom:12px}
-#enterBtn{width:100%;padding:9px;background:#4f46e5;border:none;border-radius:7px;color:white;font-size:15px;cursor:pointer}
+#nickModal{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:99}
+#nickBox{background:#1e293b;padding:26px;border-radius:16px;text-align:center;width:270px}
+#nickBox h3{margin-bottom:16px;font-size:17px}
+#nickInput{width:100%;padding:10px;border:none;border-radius:8px;background:#0f172a;color:white;font-size:15px;text-align:center;outline:none;margin-bottom:14px}
+#enterBtn{width:100%;padding:10px;background:#4f46e5;border:none;border-radius:8px;color:white;font-size:15px;font-weight:600;cursor:pointer}
 .log-ok{color:#4ade80}
 .log-err{color:#f87171}
 .log-ev{color:#facc15}
+.log-info{color:#38bdf8}
 </style>
 </head>
 <body>
-<header>💬 Chat en vivo</header>
+
+<header>
+  <span>💬 Chat v3</span>
+  <div id="relayDots"></div>
+</header>
 <div id="status">Esperando nick...</div>
 <div id="debug"></div>
 <div id="chat"></div>
 <div id="inputArea">
-  <input id="msgInput" placeholder="GATOMensaje..." disabled>
+  <input id="msgInput" placeholder="Mensaje..." disabled>
   <button id="sendBtn" disabled>Enviar</button>
 </div>
+
 <div id="nickModal">
   <div id="nickBox">
     <h3>Tu nick</h3>
-    <input id="nickInput" placeholder="Nombre" maxlength="24">
-    <button id="enterBtn">Entrar</button>
+    <input id="nickInput" placeholder="Nombre" maxlength="24" autocomplete="off">
+    <button id="enterBtn">Entrar al chat</button>
   </div>
 </div>
 
-<script type="module">
-import { generateSecretKey, getPublicKey, finalizeEvent } from 'https://esm.sh/nostr-tools@2/pure';
-import { SimplePool } from 'https://esm.sh/nostr-tools@2/pool';
+<script>
+// ── CRYPTO PURO (sin librerías) ────────────────────────────
+// Usamos la Web Crypto API nativa del browser para firmar eventos Nostr
 
-const ROOM   = "tpop-chat-001";
-const RELAYS = [
+const ROOM = "tpop-chat-v3";
+
+// Relays: usamos RAW websocket nativo, sin nostr-tools
+const RELAY_URLS = [
   "wss://relay.damus.io",
   "wss://nos.lol",
   "wss://offchain.pub",
+  "wss://relay.nostr.band/all",
+  "wss://nostr.mom",
 ];
 
-let pool  = new SimplePool();
-let sk    = generateSecretKey();
-let pk    = getPublicKey(sk);
-let nick  = "";
-let seen  = new Set();
+let nick = "";
+let privKeyBytes = null;
+let pubKeyHex = "";
+let seen = new Set();
+let sockets = {}; // url -> WebSocket
+let dotEls = {};  // url -> dot element
 
-const statusEl = document.getElementById("status");
 const debugEl  = document.getElementById("debug");
 const chatEl   = document.getElementById("chat");
+const statusEl = document.getElementById("status");
 const msgInput = document.getElementById("msgInput");
 const sendBtn  = document.getElementById("sendBtn");
+const dotsEl   = document.getElementById("relayDots");
 
-function log(msg, cls="") {
+// ── LOGS ──────────────────────────────────────────────────
+function log(msg, cls="log-info") {
   const d = document.createElement("div");
-  if (cls) d.className = cls;
+  d.className = cls;
   d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   debugEl.appendChild(d);
   debugEl.scrollTop = debugEl.scrollHeight;
@@ -79,10 +98,11 @@ function log(msg, cls="") {
 
 function setStatus(t) { statusEl.textContent = t; }
 
+// ── CHAT UI ───────────────────────────────────────────────
 function addMsg(user, text, isMe=false) {
   const d = document.createElement("div");
   d.className = "msg" + (isMe ? " me" : "");
-  d.innerHTML = `<div class="nick">${esc(user)}</div><div>${esc(text)}</div>`;
+  d.innerHTML = `<div class="nick">${esc(user)}</div><div class="txt">${esc(text)}</div>`;
   chatEl.appendChild(d);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
@@ -91,76 +111,158 @@ function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-function connect() {
-  setStatus("Conectando...");
-  log(`Sala: ${ROOM} | pk: ${pk.slice(0,10)}...`);
-
-  const since = Math.floor(Date.now()/1000) - 3600;
-
-  pool.subscribeMany(
-    RELAYS,
-    [{ kinds: [1], "#t": [ROOM], since }],
-    {
-      closeOnEose: false,
-
-      onevent(ev) {
-        log(`📨 evento de ${ev.pubkey.slice(0,8)}...`, "log-ev");
-        if (seen.has(ev.id)) return;
-        seen.add(ev.id);
-        try {
-          const { user, text } = JSON.parse(ev.content);
-          addMsg(user, text, ev.pubkey === pk);
-        } catch(e) {
-          log("Error parseando: " + e.message, "log-err");
-        }
-      },
-
-      oneose() {
-        log("EOSE — escuchando tiempo real ✓", "log-ok");
-        setStatus(`Conectado — sala: ${ROOM}`);
-        msgInput.disabled = false;
-        sendBtn.disabled  = false;
-        msgInput.focus();
-      }
-    }
-  );
+// ── NOSTR CRYPTO (Web Crypto API nativa) ──────────────────
+async function generateKeypair() {
+  // secp256k1 no está en Web Crypto, pero sí podemos usar
+  // nostr-tools vía ESM sólo para crypto — sin pool
+  const mod = await import("https://esm.sh/nostr-tools@2/pure");
+  privKeyBytes = mod.generateSecretKey();
+  pubKeyHex = mod.getPublicKey(privKeyBytes);
+  window._nostr = mod; // guardar para firmar después
+  log(`pk: ${pubKeyHex.slice(0,12)}...`);
 }
 
+async function signEvent(template) {
+  const mod = window._nostr;
+  return mod.finalizeEvent(template, privKeyBytes);
+}
+
+// ── CONEXIÓN RAW WEBSOCKET A CADA RELAY ───────────────────
+function connectRelay(url, index) {
+  // Crear dot indicador
+  const dot = document.createElement("div");
+  dot.className = "dot";
+  dot.title = url;
+  dotsEl.appendChild(dot);
+  dotEls[url] = dot;
+
+  function connect() {
+    if (sockets[url] && sockets[url].readyState <= 1) return; // ya conectando/abierto
+    log(`Conectando a ${url.replace("wss://","")}...`);
+    const ws = new WebSocket(url);
+    sockets[url] = ws;
+
+    ws.onopen = () => {
+      dot.className = "dot ok";
+      log(`✓ ${url.replace("wss://","")}`, "log-ok");
+      
+      // Suscribir a la sala
+      const since = Math.floor(Date.now()/1000) - 7200;
+      const sub = JSON.stringify([
+        "REQ",
+        "sub-chat",
+        { kinds: [1], "#t": [ROOM], since }
+      ]);
+      ws.send(sub);
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        const type = msg[0];
+
+        if (type === "EVENT") {
+          const ev = msg[2];
+          if (!ev || seen.has(ev.id)) return;
+          seen.add(ev.id);
+
+          try {
+            const data = JSON.parse(ev.content);
+            if (data.user && data.text) {
+              log(`📨 ${data.user}: ${data.text.slice(0,20)}`, "log-ev");
+              const isMe = ev.pubkey === pubKeyHex;
+              addMsg(data.user, data.text, isMe);
+            }
+          } catch {}
+
+        } else if (type === "EOSE") {
+          log(`EOSE de ${url.replace("wss://","")} — tiempo real ✓`, "log-ok");
+          // Habilitar input cuando al menos 1 relay responde EOSE
+          msgInput.disabled = false;
+          sendBtn.disabled = false;
+          const connected = Object.values(sockets).filter(s => s.readyState === 1).length;
+          setStatus(`v3 · ${connected} relay${connected!==1?"s":""} · sala: ${ROOM}`);
+
+        } else if (type === "NOTICE") {
+          log(`NOTICE de ${url.replace("wss://","")}: ${msg[1]}`, "log-err");
+
+        } else if (type === "OK") {
+          const accepted = msg[2];
+          log(`${accepted?"✓":"✗"} ${url.replace("wss://","")} OK: ${msg[3]||""}`, accepted?"log-ok":"log-err");
+        }
+      } catch {}
+    };
+
+    ws.onerror = () => {
+      dot.className = "dot fail";
+      log(`✗ Error en ${url.replace("wss://","")}`, "log-err");
+    };
+
+    ws.onclose = () => {
+      dot.className = "dot fail";
+      log(`Desconectado de ${url.replace("wss://","")} — reintentando en 5s...`, "log-err");
+      setTimeout(connect, 5000); // reconexión automática
+    };
+  }
+
+  connect();
+}
+
+// ── ENVIAR MENSAJE ────────────────────────────────────────
 async function send() {
   const text = msgInput.value.trim();
-  if (!text) return;
-
-  const event = finalizeEvent({
+  if (!text || msgInput.disabled) return;
+  
+  const template = {
     kind: 1,
     created_at: Math.floor(Date.now()/1000),
     tags: [["t", ROOM]],
     content: JSON.stringify({ user: nick, text })
-  }, sk);
+  };
+
+  let event;
+  try {
+    event = await signEvent(template);
+  } catch(e) {
+    log("Error firmando: " + e.message, "log-err");
+    return;
+  }
 
   seen.add(event.id);
   addMsg(nick, text, true);
   msgInput.value = "";
 
-  const pubs = pool.publish(RELAYS, event);
-  let ok = 0;
-  for (const p of pubs) {
-    p.then(() => { ok++; log(`✓ relay aceptó (${ok}/${RELAYS.length})`, "log-ok"); })
-     .catch(e => log(`✗ relay rechazó: ${e?.message||e}`, "log-err"));
+  const eventMsg = JSON.stringify(["EVENT", event]);
+  let sent = 0;
+  for (const [url, ws] of Object.entries(sockets)) {
+    if (ws.readyState === 1) {
+      ws.send(eventMsg);
+      sent++;
+    }
   }
+  log(`📤 Enviado a ${sent} relay${sent!==1?"s":""}`);
 }
 
+// ── INICIO ────────────────────────────────────────────────
+async function start() {
+  nick = document.getElementById("nickInput").value.trim() || "anon";
+  document.getElementById("nickModal").style.display = "none";
+  setStatus("Generando claves...");
+  
+  await generateKeypair();
+  
+  setStatus("Conectando a relays...");
+  RELAY_URLS.forEach((url, i) => connectRelay(url, i));
+}
+
+// ── EVENTOS UI ────────────────────────────────────────────
 msgInput.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
 sendBtn.addEventListener("click", send);
-
-document.getElementById("enterBtn").addEventListener("click", () => {
-  nick = document.getElementById("nickInput").value.trim() || "anon";
-  document.getElementById("nickModal").style.display = "none";
-  connect();
-});
+document.getElementById("enterBtn").addEventListener("click", start);
 document.getElementById("nickInput").addEventListener("keydown", e => {
-  if (e.key === "Enter") document.getElementById("enterBtn").click();
+  if (e.key === "Enter") start();
 });
 </script>
 </body>
