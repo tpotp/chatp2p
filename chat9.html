@@ -929,9 +929,10 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ══════════════════════════════════════════════════════════════
-//  PUDÚ 3D — WIREFRAME NEÓN + NYAN CAT + WALKING PROCEDURAL
-//  Estética: malla 3D (no sólido), neón psicodélico, estela
-//  arcoíris tipo Nyan Cat cuando vuela, patitas que caminan
+//  PUDÚ 3D — GLB + FALLBACK PROCEDURAL WIREFRAME NEÓN
+//  Si el GLB carga: wireframe neón sobre el modelo real.
+//  Si falla: pudú 3D procedural hecho con geometrías Three.js.
+//  Siempre aparece. Nyan Cat trail. Animaciones cinematográficas.
 // ══════════════════════════════════════════════════════════════
 const PUDU_GLB_URL='https://chatp2p-bice.vercel.app/objetos3d/pudu.glb';
 let pudu3dScene=null,pudu3dRenderer=null,pudu3dCamera=null;
@@ -1005,16 +1006,23 @@ let puduGlitchTime=0;
 function updateNeonPulse(model,time){
   if(!model)return;
   model.traverse(c=>{
-    if(!c.isMesh||!c._neonColor)return;
-    // Pulso de brillo
+    if(!c.isMesh)return;
     const pulse=0.6+0.4*Math.sin(time*8+c.id*0.7);
-    if(c._wfMesh)c._wfMesh.material.opacity=pulse*0.9;
-    c.material.opacity=pulse*0.15;
-    // Glitch de color ocasional
-    if(Math.random()<0.003){
-      const glitchCol=NEON_COLORS[Math.floor(Math.random()*NEON_COLORS.length)];
-      c._wfMesh.material.color.setHex(glitchCol);
-      setTimeout(()=>{if(c._wfMesh)c._wfMesh.material.color.setHex(c._neonColor);},60);
+    // Caso GLB con wireframe aplicado
+    if(c._neonColor){
+      if(c._wfMesh)c._wfMesh.material.opacity=pulse*0.9;
+      c.material.opacity=pulse*0.15;
+      if(Math.random()<0.003){
+        const glitchCol=NEON_COLORS[Math.floor(Math.random()*NEON_COLORS.length)];
+        if(c._wfMesh)c._wfMesh.material.color.setHex(glitchCol);
+        setTimeout(()=>{if(c._wfMesh)c._wfMesh.material.color.setHex(c._neonColor);},60);
+      }
+    }
+    // Caso procedural — cualquier material wireframe o semitransparente
+    else if(c.material&&c.material.wireframe){
+      c.material.opacity=Math.max(0.3,pulse*0.9);
+    } else if(c.material&&c.material.transparent&&!c.material.wireframe){
+      c.material.opacity=0.1+0.08*Math.abs(Math.sin(time*1.5+c.id));
     }
   });
 }
@@ -1150,13 +1158,119 @@ function updateNyanParticles(){
   }
 }
 
+// ── PUDÚ PROCEDURAL (fallback si GLB falla) ──────────────────
+// Construye un pudú 3D completo solo con geometrías Three.js.
+// Legs son grupos con huesos simulados para animación procedural.
+let puduLegs={}; // {fl,fr,hl,hr,head,tail,spine} → meshes animables
+
+function buildProceduralPudu(){
+  const root=new THREE.Group();
+  root._isProcedural=true;
+  const neon=()=>NEON_COLORS[Math.floor(Math.random()*NEON_COLORS.length)];
+  const wfMat=(col)=>new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:0.9});
+  const solidMat=(col)=>new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.15,side:THREE.DoubleSide,depthWrite:false});
+
+  function addPart(geo,col,parent){
+    const solid=new THREE.Mesh(geo,solidMat(col));
+    const wf=new THREE.Mesh(geo.clone(),wfMat(col));
+    const g=new THREE.Group();g.add(solid);g.add(wf);
+    parent.add(g);return g;
+  }
+
+  // Cuerpo
+  const bodyCol=0x00e5ff;
+  const body=addPart(new THREE.SphereGeometry(0.55,8,6),bodyCol,root);
+  body.position.set(0,0,0);
+
+  // Cuello
+  const neckCol=0xff00ff;
+  const neck=addPart(new THREE.CylinderGeometry(0.18,0.22,0.45,7),neckCol,root);
+  neck.position.set(0,0.55,0.3);neck.rotation.x=-0.4;
+
+  // Cabeza
+  const headCol=0x00ff88;
+  const head=addPart(new THREE.SphereGeometry(0.32,8,6),headCol,root);
+  head.position.set(0,0.88,0.58);
+  // Hocico
+  const snout=addPart(new THREE.SphereGeometry(0.14,6,5),headCol,root);
+  snout.position.set(0,0.78,0.86);
+  // Orejas
+  const earCol=0xffff00;
+  const earL=addPart(new THREE.CylinderGeometry(0.04,0.09,0.28,5),earCol,root);
+  earL.position.set(-0.2,1.16,0.5);earL.rotation.z=0.3;
+  const earR=addPart(new THREE.CylinderGeometry(0.04,0.09,0.28,5),earCol,root);
+  earR.position.set(0.2,1.16,0.5);earR.rotation.z=-0.3;
+  // Ojos
+  const eyeGeo=new THREE.SphereGeometry(0.055,5,5);
+  const eyeMat=new THREE.MeshBasicMaterial({color:0xffffff});
+  const eyeL=new THREE.Mesh(eyeGeo,eyeMat);eyeL.position.set(-0.14,0.9,0.86);root.add(eyeL);
+  const eyeR=new THREE.Mesh(eyeGeo,eyeMat);eyeR.position.set(0.14,0.9,0.86);root.add(eyeR);
+
+  // Patas — cada una como grupo para animar
+  const legCol=0xb16bff;
+  function makeLeg(x,z){
+    const g=new THREE.Group();root.add(g);g.position.set(x,-0.2,z);
+    const upper=addPart(new THREE.CylinderGeometry(0.1,0.09,0.42,6),legCol,g);
+    upper.position.set(0,-0.21,0);
+    const lower=addPart(new THREE.CylinderGeometry(0.08,0.07,0.38,6),legCol,g);
+    lower.position.set(0,-0.58,0.04);
+    const hoof=addPart(new THREE.SphereGeometry(0.1,6,5),0xffd700,g);
+    hoof.position.set(0,-0.8,0.05);hoof.scale.set(1,0.5,1.2);
+    return g;
+  }
+  puduLegs.fl=makeLeg(-0.28,0.28);  // front left
+  puduLegs.fr=makeLeg(0.28,0.28);   // front right
+  puduLegs.hl=makeLeg(-0.28,-0.28); // hind left
+  puduLegs.hr=makeLeg(0.28,-0.28);  // hind right
+  puduLegs.head=head;
+  puduLegs.earL=earL;puduLegs.earR=earR;
+
+  // Cola
+  const tail=addPart(new THREE.SphereGeometry(0.1,5,4),0xff6600,root);
+  tail.position.set(0,0.1,-0.55);tail.scale.set(1,0.7,0.6);
+  puduLegs.tail=tail;
+
+  // Cuernos pequeños (astas)
+  const hornCol=0xffd700;
+  const hornL=addPart(new THREE.CylinderGeometry(0.02,0.04,0.22,5),hornCol,root);
+  hornL.position.set(-0.14,1.22,0.44);hornL.rotation.z=0.25;
+  const hornR=addPart(new THREE.CylinderGeometry(0.02,0.04,0.22,5),hornCol,root);
+  hornR.position.set(0.14,1.22,0.44);hornR.rotation.z=-0.25;
+
+  root.position.y=-0.2;
+  root._baseY=-0.2;
+  return root;
+}
+
+// Animación de patas procedurales — funciona tanto en GLB como en procedural
+function animateProceduralLegs(t,state){
+  if(!puduLegs.fl)return;
+  const freq=state.flying?3.5:state.walking?7.0:1.5;
+  const amp=state.flying?0.55:state.walking?0.38:0.08;
+  // Patas alternadas como cuadrúpedo real
+  if(puduLegs.fl)puduLegs.fl.rotation.x=Math.sin(t*freq)*amp;
+  if(puduLegs.fr)puduLegs.fr.rotation.x=-Math.sin(t*freq)*amp;
+  if(puduLegs.hl)puduLegs.hl.rotation.x=-Math.sin(t*freq+Math.PI*0.5)*amp;
+  if(puduLegs.hr)puduLegs.hr.rotation.x=Math.sin(t*freq+Math.PI*0.5)*amp;
+  // Cabeza: curiosidad
+  if(puduLegs.head){
+    puduLegs.head.rotation.y=Math.sin(t*0.9)*0.28+Math.sin(t*0.3)*0.1;
+    puduLegs.head.rotation.x=state.flying?-0.3:Math.sin(t*0.6)*0.08;
+  }
+  // Orejas
+  if(puduLegs.earL)puduLegs.earL.rotation.z=0.3+Math.sin(t*1.4)*0.15;
+  if(puduLegs.earR)puduLegs.earR.rotation.z=-0.3-Math.sin(t*1.4+Math.PI)*0.15;
+  // Cola
+  if(puduLegs.tail)puduLegs.tail.rotation.z=Math.sin(t*(state.flying?5:3.5))*0.4;
+}
+
+// Pulso neón en wireframe — color cycling
 // ── INIT 3D ──────────────────────────────────────────────────
 async function initPudu3D(){
   if(pudu3dLoaded||pudu3dLoading)return;pudu3dLoading=true;
   const overlay=document.getElementById('pudu3d-overlay'),canvas=document.getElementById('pudu3d-canvas');
   if(!overlay||!canvas){pudu3dLoading=false;return;}
   try{
-    const GLTFLoader=await loadGLTFLoader();if(!GLTFLoader){pudu3dLoading=false;return;}
     pudu3dRenderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
     pudu3dRenderer.setClearColor(0x000000,0);
     pudu3dRenderer.setPixelRatio(Math.min(devicePixelRatio,DEVICE_PERF==='high'?2:1.5));
@@ -1166,37 +1280,58 @@ async function initPudu3D(){
     pudu3dCamera.position.set(0,1.8,7);pudu3dCamera.lookAt(0,1,0);
 
     // Iluminación dramática neón
-    pudu3dScene.add(new THREE.AmbientLight(0x000033,2));
-    const rimL=new THREE.PointLight(0x00e5ff,8,20);rimL.position.set(-4,4,3);pudu3dScene.add(rimL);
-    const rimR=new THREE.PointLight(0xff00ff,6,18);rimR.position.set(4,3,-2);pudu3dScene.add(rimR);
-    const rimG=new THREE.PointLight(0x00ff88,4,15);rimG.position.set(0,-1,4);pudu3dScene.add(rimG);
-    const topL=new THREE.DirectionalLight(0xffffff,1.5);topL.position.set(0,10,5);pudu3dScene.add(topL);
+    pudu3dScene.add(new THREE.AmbientLight(0x001133,3));
+    const rimL=new THREE.PointLight(0x00e5ff,10,22);rimL.position.set(-4,4,3);pudu3dScene.add(rimL);
+    const rimR=new THREE.PointLight(0xff00ff,8,20);rimR.position.set(4,3,-2);pudu3dScene.add(rimR);
+    const rimG=new THREE.PointLight(0x00ff88,5,16);rimG.position.set(0,-1,4);pudu3dScene.add(rimG);
+    const topL=new THREE.DirectionalLight(0xffffff,2);topL.position.set(0,10,5);pudu3dScene.add(topL);
 
     pudu3dClock=new THREE.Clock();
-    const loader=new GLTFLoader();
-    loader.load(PUDU_GLB_URL,(gltf)=>{
-      pudu3dModel=gltf.scene;
-      const box=new THREE.Box3().setFromObject(pudu3dModel);
-      const sz=box.getSize(new THREE.Vector3());
-      const sc=2.5/Math.max(sz.x,sz.y,sz.z);
-      pudu3dModel.scale.setScalar(sc);
-      const center=box.getCenter(new THREE.Vector3());
-      pudu3dModel.position.sub(center.multiplyScalar(sc));
-      pudu3dModel.position.y=-0.2;
 
-      // Aplicar estilo wireframe neón
-      applyWireframeStyle(pudu3dModel);
-      pudu3dScene.add(pudu3dModel);
-
-      // Mixer para animaciones nativas del GLB si las hay
-      if(gltf.animations&&gltf.animations.length>0){
-        pudu3dMixer=new THREE.AnimationMixer(pudu3dModel);
-        gltf.animations.forEach(clip=>{
-          pudu3dMixer.clipAction(clip).play();
+    // Intentar cargar GLB — con fallback a procedural
+    let glbLoaded=false;
+    try{
+      const GLTFLoader=await loadGLTFLoader();
+      if(GLTFLoader){
+        await new Promise((resolve)=>{
+          const loader=new GLTFLoader();
+          const timeout=setTimeout(()=>{resolve();},8000); // 8s timeout
+          loader.load(PUDU_GLB_URL,(gltf)=>{
+            clearTimeout(timeout);
+            pudu3dModel=gltf.scene;
+            const box=new THREE.Box3().setFromObject(pudu3dModel);
+            const sz=box.getSize(new THREE.Vector3());
+            const sc=2.5/Math.max(sz.x,sz.y,sz.z);
+            pudu3dModel.scale.setScalar(sc);
+            const center=box.getCenter(new THREE.Vector3());
+            pudu3dModel.position.sub(center.multiplyScalar(sc));
+            pudu3dModel.position.y=-0.2;
+            pudu3dModel._baseY=-0.2;
+            applyWireframeStyle(pudu3dModel);
+            pudu3dScene.add(pudu3dModel);
+            if(gltf.animations&&gltf.animations.length>0){
+              pudu3dMixer=new THREE.AnimationMixer(pudu3dModel);
+              gltf.animations.forEach(clip=>pudu3dMixer.clipAction(clip).play());
+            }
+            glbLoaded=true;
+            resolve();
+          },undefined,(err)=>{
+            clearTimeout(timeout);
+            console.warn('GLB load error, usando pudú procedural:',err);
+            resolve();
+          });
         });
       }
-      pudu3dLoaded=true;pudu3dLoading=false;
-    },undefined,(err)=>{console.warn('GLB load error:',err);pudu3dLoading=false;});
+    }catch(e){console.warn('GLTFLoader error:',e);}
+
+    // Fallback: pudú procedural si GLB no cargó
+    if(!glbLoaded){
+      puduLegs={};
+      pudu3dModel=buildProceduralPudu();
+      pudu3dScene.add(pudu3dModel);
+    }
+
+    pudu3dLoaded=true;pudu3dLoading=false;
 
     window.addEventListener('resize',()=>{
       if(!pudu3dRenderer)return;
@@ -1204,7 +1339,17 @@ async function initPudu3D(){
       pudu3dCamera.aspect=innerWidth/innerHeight;
       pudu3dCamera.updateProjectionMatrix();
     });
-  }catch(e){pudu3dLoading=false;console.warn('Pudú 3D init error:',e);}
+  }catch(e){
+    pudu3dLoading=false;
+    // Último recurso: crear pudú procedural de emergencia
+    try{
+      if(!pudu3dModel&&pudu3dScene){
+        puduLegs={};pudu3dModel=buildProceduralPudu();pudu3dScene.add(pudu3dModel);
+        pudu3dLoaded=true;
+      }
+    }catch{}
+    console.warn('Pudú 3D init error:',e);
+  }
 }
 
 let nyanSpawnTimer=0;
@@ -1214,13 +1359,18 @@ function runPudu3DLoop(){
   const delta=pudu3dClock.getDelta();
   pudu3dProcTime+=delta;
   if(pudu3dMixer)pudu3dMixer.update(delta);
-  // Animación procedural de patas
-  animatePuduBonesProcedurally(pudu3dModel,pudu3dProcTime,puduAnimState);
+  // Animación procedural de patas (GLB: huesos / procedural: grupos)
+  if(pudu3dModel&&pudu3dModel._isProcedural){
+    animateProceduralLegs(pudu3dProcTime,puduAnimState);
+  } else {
+    animatePuduBonesProcedurally(pudu3dModel,pudu3dProcTime,puduAnimState);
+  }
   // Pulso neón
   updateNeonPulse(pudu3dModel,pudu3dProcTime);
   // Respiración base
   if(pudu3dModel&&!puduAnimState.flying){
-    pudu3dModel.position.y=(pudu3dModel._baseY||-0.2)+Math.sin(pudu3dProcTime*1.9)*0.035;
+    const baseY=pudu3dModel._baseY||(-0.2);
+    pudu3dModel.position.y=baseY+Math.sin(pudu3dProcTime*1.9)*0.035;
   }
   // Estela Nyan Cat cuando vuela
   if(nyanTrailActive&&pudu3dModel){
@@ -1332,14 +1482,15 @@ function animarSpinShow(model){
     const dur=4000;const start=performance.now();
     model.position.set(0,-0.2,2);
     model._baseY=-0.2;
+    const baseScale=model.scale.x||1;
     function step(now){
       const p=Math.min((now-start)/dur,1);
       // Aparece del suelo con spin
       model.position.y=-0.2+Math.sin(p*Math.PI)*2.0;
       model.rotation.y=p*Math.PI*4; // 2 vueltas completas
       // Escala de aparición dramática
-      const sc=p<0.15?easeOut(p/0.15):1;
-      model.scale.setScalar(sc*(2.5/Math.max(...[1]))); // mantiene escala base
+      const sc=p<0.15?easeOut(p/0.15)*baseScale:baseScale;
+      model.scale.setScalar(sc);
       if(p<1)requestAnimationFrame(step);else r();
     }
     requestAnimationFrame(step);
