@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<title>PudúChat — Bosque de Salas</title>
+
+<style>
+/* ── PUDÚ 3D OVERLAY ── */
+#pudu3d-overlay{
+  position:fixed;inset:0;z-index:500;pointer-events:none;
+  overflow:hidden;display:none;
+}
+#pudu3d-canvas{
+  position:absolute;bottom:0;left:0;
+  width:100%;height:100%;
+  pointer-events:none;
+}
+#pudu3d-caption{
+  position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+  font-family:'Cinzel Decorative',serif;font-size:clamp(16px,3.5vw,28px);letter-spacing:6px;
+  color:#e8d5a0;text-shadow:0 0 30px #7eb8d4,0 0 60px #3a7a9c,2px 2px 0 #000;
+  white-space:nowrap;opacity:0;
+  pointer-events:none;font-weight:700;
+}
+#pudu3d-vignette{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,transparent 20%,rgba(0,4,12,0.75) 100%);
+  opacity:0;pointer-events:none;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Rajdhani',sans-serif;background:#030508}
+:root{
+  /* Power Metal Palette — dark steel, glacial blue, gold, silver */
+  --ice:#7eb8d4;--ice2:#a8d4e8;--gold:#c8a030;--gold2:#e8c860;
+  --silver:#b0bcc8;--steel:#4a5a6a;--crimson:#8b1a24;
+  --bg-deep:#030508;--bg-mid:#06090f;
+  --metal-grad:linear-gradient(135deg,#1a2a3a,#0a1520,#1a2a3a);
+  --bubble-me:linear-gradient(135deg,#1a3a5a 0%,#0d2a4a 60%,#162240 100%);
+  --bubble-other:rgba(8,14,22,0.94);
+  --glow-ice:rgba(126,184,212,0.5);--glow-gold:rgba(200,160,48,0.4);
+  --sidebar-w:260px;
+  --font-title:'Cinzel Decorative',serif;
+  --font-ui:'Cinzel',serif;
+  --font-body:'Rajdhani',sans-serif;
+  --font-mono:'Orbitron',sans-serif;
+}
+canvas{position:fixed;inset:0;z-index:0}
+#bg-overlay{position:fixed;inset:0;z-index:1;background:linear-gradient(to bottom,rgba(3,5,8,0.5) 0%,rgba(6,12,20,0.3) 40%,rgba(3,5,8,0.6) 100%)}
+#three-canvas{position:fixed;inset:0;z-index:2}
+#bg-img{
+  position:fixed;inset:0;z-index:0;
+  background:url('https://media-cldnry.s-nbcnews.com/image/upload/t_social_share_1024x768_scale,f_auto,q_auto:best/rockcms/2024-11/Pudu-Argentina-207469.jpg') center/cover no-repeat;
+  filter:blur(3px) saturate(0.7) brightness(0.4) hue-rotate(200deg);
+  transform:scale(1.04);
+}
+.screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s,transform .5s}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(.96)}
+#welcome-screen{padding:20px}
+.welcome-card{
+  background:rgba(4,8,16,.92);border:1px solid rgba(126,184,212,.25);border-radius:8px;
+  padding:32px 26px 34px;max-width:400px;width:100%;
+  backdrop-filter:blur(24px);
+  box-shadow:0 0 60px rgba(126,184,212,.12),0 0 120px rgba(200,160,48,.06),inset 0 1px 0 rgba(126,184,212,.1);
+  position:relative;overflow:hidden;
+}
+.welcome-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--ice),var(--gold),var(--ice),transparent)}
+.welcome-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--steel),transparent)}
+.title-iron{
+  font-family:var(--font-title);font-size:clamp(28px,6vw,42px);letter-spacing:8px;
+  background:linear-gradient(135deg,#7eb8d4 0%,#e8c860 50%,#b0bcc8 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  display:block;line-height:1.1;text-align:center;
+  filter:drop-shadow(0 2px 16px rgba(126,184,212,.5));font-weight:700;
+}
+.title-sub{font-family:var(--font-ui);font-size:10px;letter-spacing:4px;color:rgba(126,184,212,.4);text-align:center;text-transform:uppercase;margin-top:6px}
+.pudu-zone{margin:20px auto 12px;display:flex;flex-direction:column;align-items:center}
+.pudu-wrap{position:relative;cursor:pointer;display:inline-block;transition:transform .12s}
+.pudu-wrap:active{transform:scale(.9) rotate(-3deg)}
+.pudu-img{width:130px;height:130px;filter:drop-shadow(0 0 18px rgba(126,184,212,.6)) drop-shadow(0 0 6px rgba(200,160,48,.4));animation:puduFloat 4s ease-in-out infinite}
+@keyframes puduFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-10px) rotate(1deg)}}
+.ring{position:absolute;inset:-14px;border-radius:50%;border:1px solid var(--ice);opacity:0;animation:ringOut 2.5s ease-out infinite;pointer-events:none}
+.ring:nth-child(2){animation-delay:.9s;border-color:var(--gold)}
+.ring:nth-child(3){animation-delay:1.8s}
+@keyframes ringOut{0%{opacity:.7;transform:scale(.6)}100%{opacity:0;transform:scale(1.6)}}
+.tap-hint{font-family:var(--font-ui);font-size:10px;color:var(--ice);letter-spacing:4px;text-transform:uppercase;margin-top:10px;animation:blink 2.2s infinite;font-weight:600}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:.8}}
+.q-text{font-family:var(--font-ui);font-size:16px;letter-spacing:3px;color:var(--gold2);text-align:center;margin:18px 0 6px;text-shadow:0 0 20px rgba(200,160,48,.5);font-weight:600}
+.q-sub{font-size:14px;color:rgba(126,184,212,.4);text-align:center;margin-bottom:20px;font-family:var(--font-body);letter-spacing:1px}
+.enter-btn{
+  width:100%;padding:16px 10px;
+  background:linear-gradient(135deg,#0d2035 0%,#1a3a5a 50%,#0d2035 100%);
+  border:1px solid rgba(126,184,212,.4);border-radius:4px;
+  color:var(--ice2);font-family:var(--font-ui);font-size:20px;letter-spacing:6px;
+  cursor:pointer;position:relative;overflow:hidden;transition:all .25s;
+  text-shadow:0 0 20px rgba(126,184,212,.8);
+  box-shadow:0 4px 24px rgba(126,184,212,.15),inset 0 1px 0 rgba(126,184,212,.15);
+  font-weight:700;
+}
+.enter-btn::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--ice),transparent)}
+.enter-btn:hover{border-color:var(--ice);box-shadow:0 0 40px rgba(126,184,212,.25),inset 0 0 20px rgba(126,184,212,.05);transform:translateY(-1px);color:#fff}
+.enter-btn:active{transform:scale(.96)}
+#assigned-name-display{font-family:var(--font-ui);font-size:13px;letter-spacing:3px;color:var(--gold2);text-align:center;margin-top:14px;min-height:22px;text-shadow:0 0 16px rgba(200,160,48,.4)}
+.connecting-card{background:rgba(4,8,16,.95);border:1px solid rgba(126,184,212,.2);border-radius:6px;padding:36px 28px;max-width:320px;width:90%;text-align:center;backdrop-filter:blur(24px);box-shadow:0 0 60px rgba(126,184,212,.1)}
+.connecting-title{font-family:var(--font-ui);font-size:22px;letter-spacing:4px;color:var(--ice2);margin-bottom:16px;text-shadow:0 0 20px var(--ice)}
+.connecting-pudu{font-size:54px;display:block;animation:puduSpin 1.8s ease-in-out infinite}
+@keyframes puduSpin{0%,100%{transform:scale(1) rotate(-3deg)}50%{transform:scale(1.15) rotate(3deg)}}
+.dots span{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 5px;animation:dotBounce 1s ease-in-out infinite}
+.dots span:nth-child(1){background:var(--ice);animation-delay:0s}
+.dots span:nth-child(2){background:var(--gold);animation-delay:.2s}
+.dots span:nth-child(3){background:var(--silver);animation-delay:.4s}
+@keyframes dotBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-10px)}}
+.relay-dots{display:flex;gap:6px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.rdot{width:8px;height:8px;border-radius:50%;background:#1a2a3a;transition:background .3s;cursor:help}
+.rdot.ok{background:#2a7a4a}.rdot.fail{background:#6a1a1a}.rdot.connecting{background:var(--gold);animation:blink 1s infinite}
+
+/* ══ LAYOUT CHAT CON SIDEBAR ══ */
+#chat-screen{justify-content:flex-start;align-items:stretch;padding:0;flex-direction:row}
+
+/* ── SIDEBAR SALAS ── */
+#rooms-sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:rgba(4,8,16,.97);
+  border-right:1px solid rgba(126,184,212,.1);
+  display:flex;flex-direction:column;
+  z-index:25;
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  backdrop-filter:blur(28px);
+}
+#rooms-sidebar.collapsed{transform:translateX(calc(-1 * var(--sidebar-w)));position:absolute;top:0;bottom:0;left:0}
+.sidebar-header{
+  padding:16px 16px 10px;
+  border-bottom:1px solid rgba(126,184,212,.08);
+  flex-shrink:0;
+}
+.sidebar-title{font-family:var(--font-ui);font-size:16px;letter-spacing:5px;background:linear-gradient(90deg,var(--ice),var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:block;font-weight:700}
+.sidebar-subtitle{font-family:var(--font-body);font-size:10px;letter-spacing:2px;color:rgba(126,184,212,.25);text-transform:uppercase;margin-top:2px}
+.sidebar-rooms{flex:1;overflow-y:auto;padding:8px 8px;display:flex;flex-direction:column;gap:5px}
+.sidebar-rooms::-webkit-scrollbar{width:2px}
+.sidebar-rooms::-webkit-scrollbar-thumb{background:rgba(126,184,212,.2);border-radius:1px}
+.room-card{
+  padding:10px 12px;border-radius:4px;cursor:pointer;
+  border:1px solid rgba(126,184,212,.08);
+  background:rgba(126,184,212,.02);
+  transition:all .2s;position:relative;
+  animation:roomIn .35s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes roomIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+.room-card:hover{background:rgba(126,184,212,.07);border-color:rgba(126,184,212,.2);transform:translateX(2px)}
+.room-card.active{
+  background:rgba(126,184,212,.1);
+  border-color:rgba(126,184,212,.35);
+  box-shadow:0 0 14px rgba(126,184,212,.1),inset 0 0 10px rgba(126,184,212,.04);
+}
+.room-card.full{opacity:.4;cursor:not-allowed}
+.room-card.full:hover{transform:none;background:rgba(126,184,212,.02)}
+.room-name{font-family:var(--font-body);font-size:13px;color:#c8d8e8;line-height:1.3;letter-spacing:.5px;font-weight:600}
+.room-card.active .room-name{color:var(--ice2);text-shadow:0 0 8px rgba(126,184,212,.4)}
+.room-meta{display:flex;align-items:center;gap:5px;margin-top:5px}
+.room-count{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;color:rgba(126,184,212,.4)}
+.room-badge{
+  font-family:var(--font-body);font-size:9px;letter-spacing:.5px;
+  padding:1px 6px;border-radius:2px;text-transform:uppercase;font-weight:600;
+}
+.room-badge.available{background:rgba(42,122,74,.12);color:#4a9a6a;border:1px solid rgba(42,122,74,.25)}
+.room-badge.almost{background:rgba(180,140,30,.12);color:#c8a030;border:1px solid rgba(180,140,30,.25)}
+.room-badge.full{background:rgba(120,30,40,.12);color:#8b3a3a;border:1px solid rgba(120,30,40,.25)}
+.room-active-dot{
+  width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-left:auto;
+  background:var(--ice);box-shadow:0 0 6px rgba(126,184,212,.6);
+  animation:pulseDot 2.5s ease-in-out infinite;
+}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.2}}
+.room-card:not(.active) .room-active-dot{background:rgba(126,184,212,.15);box-shadow:none;animation:none}
+.sidebar-footer{
+  padding:10px 10px;border-top:1px solid rgba(126,184,212,.08);flex-shrink:0;
+}
+.new-room-btn{
+  width:100%;padding:9px;background:rgba(126,184,212,.04);
+  border:1px solid rgba(126,184,212,.15);border-radius:4px;
+  color:rgba(126,184,212,.5);font-family:var(--font-ui);font-size:11px;
+  cursor:pointer;transition:all .2s;letter-spacing:2px;font-weight:600;
+}
+.new-room-btn:hover{background:rgba(126,184,212,.1);color:var(--ice2);border-color:rgba(126,184,212,.4)}
+#sidebar-toggle{
+  position:absolute;top:14px;left:8px;z-index:30;
+  width:34px;height:34px;border-radius:3px;
+  background:rgba(126,184,212,.08);border:1px solid rgba(126,184,212,.2);
+  color:var(--ice);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;backdrop-filter:blur(10px);
+}
+#sidebar-toggle:hover{background:rgba(126,184,212,.15);transform:scale(1.05)}
+#sidebar-toggle.hidden{display:none}
+
+/* ── CHAT AREA ── */
+.chat-area{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.chat-header{
+  position:relative;z-index:20;background:rgba(4,8,16,.96);
+  border-bottom:1px solid transparent;background-clip:padding-box;
+  padding:12px 16px 12px 54px;display:flex;align-items:center;gap:12px;
+  backdrop-filter:blur(28px);flex-shrink:0;
+  box-shadow:0 2px 20px rgba(126,184,212,.08);
+  will-change:transform;
+}
+.chat-header::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--ice),var(--gold),var(--ice),transparent);opacity:.4}
+.h-avatar{
+  width:42px;height:42px;border-radius:4px;
+  border:1px solid rgba(126,184,212,.3);display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;background:rgba(126,184,212,.06);
+  animation:avatarGlow 4s ease-in-out infinite;
+}
+@keyframes avatarGlow{0%,100%{box-shadow:0 0 0 0 rgba(126,184,212,.4)}50%{box-shadow:0 0 0 6px rgba(126,184,212,0)}}
+.h-info{flex:1;min-width:0}
+.h-room-tag{font-family:var(--font-body);font-size:10px;letter-spacing:2px;color:rgba(126,184,212,.35);text-transform:uppercase;margin-bottom:1px}
+.h-name{font-family:var(--font-ui);font-size:clamp(14px,2vw,18px);letter-spacing:3px;color:#c8d8e8;text-shadow:0 0 10px rgba(126,184,212,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.h-status{font-size:11px;color:#4a9a6a;font-family:var(--font-body);letter-spacing:1px}
+.h-status.offline{color:rgba(126,184,212,.25)}
+.h-room-counter{
+  font-family:var(--font-mono);font-size:12px;letter-spacing:1px;
+  background:rgba(126,184,212,.06);border:1px solid rgba(126,184,212,.15);
+  border-radius:3px;padding:4px 10px;color:var(--ice);flex-shrink:0;
+  display:flex;align-items:center;gap:5px;
+}
+.h-logo{font-size:24px;animation:logoRock 5s ease-in-out infinite;flex-shrink:0}
+@keyframes logoRock{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+
+/* ── CHAT MESSAGES ── */
+.chat-messages{
+  flex:1;overflow-y:auto;padding:16px 20px 10px;
+  display:flex;flex-direction:column;gap:10px;
+  scroll-behavior:smooth;will-change:transform;
+  contain:layout style;
+}
+.chat-messages::-webkit-scrollbar{width:3px}
+.chat-messages::-webkit-scrollbar-thumb{background:rgba(126,184,212,.25);border-radius:2px}
+#load-more-sentinel{
+  height:32px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-body);font-size:11px;letter-spacing:2px;
+  color:rgba(126,184,212,.25);cursor:pointer;flex-shrink:0;
+  transition:color .2s;text-transform:uppercase;
+}
+#load-more-sentinel:hover{color:var(--ice)}
+#load-more-sentinel.hidden{display:none}
+.msg-row{
+  display:flex;flex-direction:column;
+  max-width:72%;
+  animation:bubbleIn .3s cubic-bezier(.34,1.56,.64,1) both;
+  contain:layout style;
+}
+@media(min-width:601px){.msg-row{max-width:62%;}}
+@keyframes bubbleIn{from{opacity:0;transform:translateY(12px) scale(.94)}to{opacity:1;transform:none}}
+.msg-row.offscreen{animation:none;opacity:1}
+.msg-row.me{align-self:flex-end;align-items:flex-end}
+.msg-row.other{align-self:flex-start;align-items:flex-start}
+.msg-sender{
+  font-family:var(--font-ui);font-size:clamp(11px,1.2vw,13px);
+  letter-spacing:2px;margin-bottom:4px;padding:0 6px;font-weight:600;text-transform:uppercase;
+}
+.msg-row.other .msg-sender{color:var(--ice);text-shadow:0 0 8px rgba(126,184,212,.5)}
+.msg-row.me .msg-sender{color:rgba(126,184,212,.3)}
+.msg-bubble{
+  padding:clamp(12px,1.5vw,16px) clamp(16px,2vw,22px);
+  border-radius:4px;
+  font-size:clamp(16px,1.8vw,20px);
+  line-height:1.6;word-break:break-word;
+  cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative;
+  font-family:var(--font-body);font-weight:500;
+  letter-spacing:.4px;
+}
+.msg-bubble:hover{transform:scale(1.02);box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.msg-row.me .msg-bubble{
+  background:var(--bubble-me);color:#c8d8e8;border-bottom-right-radius:1px;
+  border:1px solid rgba(126,184,212,.15);
+  box-shadow:3px 4px 0 rgba(0,0,0,.6),0 4px 24px rgba(126,184,212,.1);
+  text-shadow:0 1px 3px rgba(0,0,0,.6);
+}
+.msg-row.me .msg-bubble::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(126,184,212,.3));
+}
+.msg-row.other .msg-bubble{
+  background:var(--bubble-other);color:#c8d8e8;border-bottom-left-radius:1px;
+  border:1px solid rgba(126,184,212,.1);
+  box-shadow:3px 4px 0 rgba(0,0,0,.6),0 0 20px rgba(126,184,212,.06);
+  text-shadow:0 1px 4px rgba(0,0,0,.9);
+}
+.msg-time{font-size:10px;color:rgba(176,188,200,.25);padding:0 6px;margin-top:4px;font-family:var(--font-mono);letter-spacing:1px}
+.msg-reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;padding:0 4px}
+.react-badge{
+  background:rgba(126,184,212,.08);border:1px solid rgba(126,184,212,.15);
+  border-radius:3px;padding:2px 8px;font-size:14px;cursor:pointer;
+  transition:transform .15s;display:flex;align-items:center;gap:3px;
+}
+.react-badge:hover{transform:scale(1.2)}
+.react-count{font-size:10px;color:rgba(176,188,200,.6);font-family:var(--font-body);letter-spacing:.5px}
+.sys-msg{
+  text-align:center;font-family:var(--font-ui);font-size:10px;letter-spacing:3px;
+  color:rgba(126,184,212,.2);padding:5px;flex-shrink:0;text-transform:uppercase;
+}
+.nat-warn{
+  background:rgba(139,26,36,.08);border:1px solid rgba(139,26,36,.2);
+  border-radius:4px;padding:10px 16px;margin:8px 0;
+  font-size:13px;color:rgba(200,160,160,.6);text-align:center;
+  font-family:var(--font-body);letter-spacing:.5px;
+}
+.typing-ind{
+  align-self:flex-start;background:var(--bubble-other);
+  border:1px solid rgba(126,184,212,.1);border-radius:4px;border-bottom-left-radius:1px;
+  padding:10px 16px;display:none;
+}
+.typing-ind.on{display:flex;gap:6px;align-items:center}
+.tdot{width:7px;height:7px;border-radius:50%;animation:tdot 1.3s ease-in-out infinite}
+.tdot:nth-child(1){background:var(--ice);animation-delay:0s}
+.tdot:nth-child(2){background:var(--gold);animation-delay:.22s}
+.tdot:nth-child(3){background:var(--silver);animation-delay:.44s}
+@keyframes tdot{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-6px);opacity:1}}
+
+/* ── INPUT AREA ── */
+.chat-input-area{
+  position:relative;z-index:20;background:rgba(4,8,16,.96);
+  border-top:1px solid rgba(126,184,212,.1);
+  padding:12px 16px;display:flex;gap:10px;align-items:flex-end;
+  backdrop-filter:blur(28px);flex-shrink:0;
+}
+.chat-input-area::before{content:'';position:absolute;top:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(126,184,212,.3),transparent)}
+.chat-input{
+  flex:1;background:rgba(126,184,212,.04);border:1px solid rgba(126,184,212,.2);
+  border-radius:3px;padding:clamp(10px,1.2vw,14px) clamp(14px,1.5vw,20px);color:#c8d8e8;
+  font-family:var(--font-body);font-size:clamp(16px,1.6vw,18px);outline:none;resize:none;
+  max-height:100px;line-height:1.5;transition:border-color .2s,box-shadow .2s;
+  font-weight:500;letter-spacing:.3px;
+}
+.chat-input:focus{border-color:rgba(126,184,212,.5);box-shadow:0 0 20px rgba(126,184,212,.08),inset 0 0 10px rgba(126,184,212,.03)}
+.chat-input::placeholder{color:rgba(126,184,212,.2);font-style:italic}
+.send-btn{
+  width:46px;height:46px;border-radius:3px;
+  background:linear-gradient(135deg,#0d2035,#1a3a5a);
+  border:1px solid rgba(126,184,212,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;position:relative;overflow:hidden;
+  box-shadow:0 4px 16px rgba(126,184,212,.1),inset 0 1px 0 rgba(126,184,212,.15);
+  transition:transform .12s,box-shadow .12s,border-color .12s;
+}
+.send-btn:hover{border-color:rgba(126,184,212,.6);box-shadow:0 4px 24px rgba(126,184,212,.2)}
+.send-btn:active{transform:scale(.88);box-shadow:0 1px 6px rgba(126,184,212,.1)}
+
+/* ── ROOM FULL TOAST ── */
+#room-toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+  z-index:200;background:rgba(4,8,16,.98);
+  border:1px solid rgba(139,26,36,.4);border-radius:4px;
+  padding:12px 20px;color:rgba(200,160,160,.8);font-family:var(--font-body);font-size:14px;letter-spacing:.5px;
+  text-align:center;max-width:320px;
+  box-shadow:0 8px 32px rgba(0,0,0,.9),0 0 24px rgba(139,26,36,.1);
+  opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;
+  backdrop-filter:blur(24px);
+}
+#room-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── SALA SWITCH NOTIF ── */
+#room-switch-banner{
+  position:fixed;top:0;left:0;right:0;z-index:150;
+  background:linear-gradient(135deg,rgba(126,184,212,.08),rgba(200,160,48,.06));
+  border-bottom:1px solid rgba(126,184,212,.15);
+  padding:8px 16px;text-align:center;
+  font-family:var(--font-ui);font-size:11px;letter-spacing:3px;color:var(--ice2);text-transform:uppercase;
+  transform:translateY(-100%);transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  backdrop-filter:blur(20px);font-weight:600;
+}
+#room-switch-banner.show{transform:translateY(0)}
+
+/* ── REACT PICKER ── */
+.react-picker{
+  position:fixed;z-index:200;background:rgba(4,8,16,.98);
+  border:1px solid rgba(126,184,212,.25);border-radius:4px;
+  padding:8px 14px;display:flex;gap:10px;backdrop-filter:blur(24px);
+  box-shadow:0 8px 32px rgba(0,0,0,.9),0 0 24px rgba(126,184,212,.1);
+  transition:opacity .2s,transform .2s;
+}
+.react-picker.hidden{opacity:0;pointer-events:none;transform:translateY(8px)}
+.rpick{font-size:22px;cursor:pointer;transition:transform .15s;user-select:none;line-height:1}
+.rpick:hover{transform:scale(1.45) translateY(-4px)}
+
+/* ── MISC FX ── */
+#msg3d{position:fixed;inset:0;z-index:5;pointer-events:none}
+.ripple{position:fixed;border-radius:50%;border:1px solid var(--ice);pointer-events:none;z-index:999;animation:rOut 1s ease-out forwards}
+@keyframes rOut{from{width:8px;height:8px;opacity:.8;transform:translate(-50%,-50%) scale(1)}to{width:200px;height:200px;opacity:0;transform:translate(-50%,-50%) scale(1)}}
+.star-particle{position:fixed;pointer-events:none;z-index:998;font-size:16px;animation:starFly .9s ease-out forwards}
+@keyframes starFly{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-70px) scale(.2)}}
+#flash-overlay{position:fixed;inset:0;z-index:999;pointer-events:none;background:rgba(126,184,212,0);transition:background .1s}
+#mesh-indicator{
+  position:fixed;bottom:80px;right:12px;z-index:50;
+  font-size:9px;font-family:var(--font-mono);letter-spacing:2px;
+  color:rgba(126,184,212,.15);text-align:right;pointer-events:none;
+  transition:color .5s;line-height:1.8;text-transform:uppercase;
+}
+#mesh-indicator.active{color:rgba(74,160,100,.35)}
+
+/* ── DESKTOP: WhatsApp Web-like clarity ── */
+@media(min-width:601px){
+  #sidebar-toggle{display:none}
+  .chat-messages{padding:20px 28px 12px;}
+  .msg-bubble{padding:14px 22px;font-size:clamp(17px,1.5vw,19px);}
+  .msg-row{max-width:60%;}
+  :root{--sidebar-w:270px;}
+}
+
+/* ── MOBILE SIDEBAR TOGGLE ── */
+@media(max-width:600px){
+  :root{--sidebar-w:220px}
+  #rooms-sidebar{position:absolute;top:0;bottom:0;left:0;z-index:30;transform:translateX(-100%);transition:transform .3s}
+  #rooms-sidebar.open{transform:translateX(0)}
+  .chat-header{padding-left:52px}
+  #sidebar-toggle{display:flex!important}
+}
+/* ── LARGE SCREEN: WhatsApp Web-style max container ── */
+@media(min-width:1200px){
+  #chat-screen{max-width:1400px;margin:0 auto;height:100vh;}
+  :root{--sidebar-w:300px;}
+  .msg-bubble{font-size:18px;}
+  .chat-messages{padding:24px 36px 14px;}
+}
+
+/* ── SCANLINE OVERLAY (subtle metal texture) ── */
+body::after{
+  content:'';position:fixed;inset:0;z-index:3;pointer-events:none;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+}
+
+/* ── METAL SHEEN ANIMATION on send btn ── */
+.send-btn::after{
+  content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(126,184,212,.25),transparent);
+  animation:metalSheen 3s ease-in-out infinite;
+}
+@keyframes metalSheen{0%,100%{left:-100%}50%{left:150%}}
+
+/* ── SCROLLBAR GLOBAL ── */
+*::-webkit-scrollbar{width:3px;height:3px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:rgba(126,184,212,.2);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="bg-img"></div>
+<div id="bg-overlay"></div>
+<canvas id="three-canvas"></canvas>
+<canvas id="msg3d"></canvas>
+<div id="flash-overlay"></div>
+<div id="mesh-indicator">🕸 mesh</div>
+
+<!-- ROOM FULL TOAST -->
+<div id="room-toast">🦌 Esta sala ya tiene 15 pudúes hablando,<br>espera que salga uno 🌿</div>
+<!-- ROOM SWITCH BANNER -->
+<div id="room-switch-banner" id="room-switch-banner"></div>
+
+<!-- WELCOME SCREEN -->
+<div class="screen" id="welcome-screen">
+  <div class="welcome-card">
+    <span class="title-iron">PUDÚ CHAT</span>
+    <div class="title-sub">🦌 bosque nativo · red p2p · chile 🌿</div>
+    <div class="pudu-zone">
+      <div class="pudu-wrap" id="pudu-btn">
+        <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+        <svg class="pudu-img" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bodG" cx="50%" cy="40%"><stop offset="0%" stop-color="#c8a46e"/><stop offset="100%" stop-color="#8b5e3c"/></radialGradient>
+            <radialGradient id="faceG" cx="50%" cy="40%"><stop offset="0%" stop-color="#ddb87a"/><stop offset="100%" stop-color="#a0713f"/></radialGradient>
+          </defs>
+          <ellipse cx="100" cy="136" rx="46" ry="38" fill="url(#bodG)"/>
+          <rect x="65" y="158" width="12" height="26" rx="6" fill="#8b5e3c"/>
+          <rect x="82" y="162" width="12" height="22" rx="6" fill="#8b5e3c"/>
+          <rect x="106" y="162" width="12" height="22" rx="6" fill="#8b5e3c"/>
+          <rect x="123" y="158" width="12" height="26" rx="6" fill="#8b5e3c"/>
+          <ellipse cx="71" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
+          <ellipse cx="88" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
+          <ellipse cx="112" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
+          <ellipse cx="129" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
+          <ellipse cx="148" cy="130" rx="10" ry="7" fill="#e8d4b0"/>
+          <ellipse cx="100" cy="80" rx="34" ry="32" fill="url(#faceG)"/>
+          <ellipse cx="72" cy="52" rx="10" ry="18" fill="#c8a46e" transform="rotate(-15 72 52)"/>
+          <ellipse cx="128" cy="52" rx="10" ry="18" fill="#c8a46e" transform="rotate(15 128 52)"/>
+          <ellipse cx="72" cy="52" rx="6" ry="12" fill="#f0c8a0" transform="rotate(-15 72 52)"/>
+          <ellipse cx="128" cy="52" rx="6" ry="12" fill="#f0c8a0" transform="rotate(15 128 52)"/>
+          <line x1="72" y1="38" x2="66" y2="22" stroke="#8b5e3c" stroke-width="3" stroke-linecap="round"/>
+          <line x1="66" y1="22" x2="60" y2="16" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="66" y1="22" x2="72" y2="14" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="128" y1="38" x2="134" y2="22" stroke="#8b5e3c" stroke-width="3" stroke-linecap="round"/>
+          <line x1="134" y1="22" x2="128" y2="14" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="134" y1="22" x2="140" y2="16" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
+          <ellipse cx="86" cy="78" rx="9" ry="10" fill="#1a0a00"/>
+          <ellipse cx="114" cy="78" rx="9" ry="10" fill="#1a0a00"/>
+          <ellipse cx="88" cy="75" rx="3" ry="3.5" fill="white" opacity=".85"/>
+          <ellipse cx="116" cy="75" rx="3" ry="3.5" fill="white" opacity=".85"/>
+          <ellipse cx="83" cy="82" rx="1.5" ry="1.5" fill="white" opacity=".5"/>
+          <ellipse cx="111" cy="82" rx="1.5" ry="1.5" fill="white" opacity=".5"/>
+          <ellipse cx="73" cy="90" rx="10" ry="6" fill="#ff9ed5" opacity=".45"/>
+          <ellipse cx="127" cy="90" rx="10" ry="6" fill="#ff9ed5" opacity=".45"/>
+          <ellipse cx="100" cy="93" rx="5" ry="3.5" fill="#c06040"/>
+          <path d="M 88 100 Q 100 96 112 100" stroke="#1a0a00" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="100" cy="120" rx="18" ry="12" fill="#e8d4b0" opacity=".6"/>
+          <polygon points="100,108 103,116 111,116 105,121 107,129 100,124 93,129 95,121 89,116 97,116" fill="#ffd700" opacity=".9"/>
+        </svg>
+        <div class="tap-hint">— invocar al pudú —</div>
+      </div>
+    </div>
+    <div class="q-text">INGRESA AL BOSQUE DIMENSIONAL</div>
+    <div class="q-sub">se te asignará un nombre y una sala · red mesh P2P</div>
+    <div id="assigned-name-display">preparando identidad...</div>
+    <button class="enter-btn" id="enter-btn" onclick="enterChat()" style="margin-top:18px">
+      ⚔ ENTRAR AL BOSQUE ⚔
+    </button>
+  </div>
+</div>
+
+<!-- CONNECTING SCREEN -->
+<div class="screen hidden" id="connecting-screen">
+  <div class="connecting-card">
+    <div class="connecting-title">CONECTANDO...</div>
+    <span class="connecting-pudu">🦌</span>
+    <div class="dots" style="margin:16px 0"><span></span><span></span><span></span></div>
+    <div id="connecting-text" style="font-size:12px;color:rgba(126,184,212,.3);font-family:var(--font-ui);letter-spacing:2px;text-transform:uppercase">Conectando a los relays...</div>
+    <div class="relay-dots" id="relay-dots"></div>
+  </div>
+</div>
+
+<!-- CHAT SCREEN -->
+<div class="screen hidden" id="chat-screen">
+  <!-- Sidebar toggle (mobile) -->
+  <button id="sidebar-toggle" onclick="toggleSidebar()">≡</button>
+
+  <!-- ROOMS SIDEBAR -->
+  <div id="rooms-sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">🦌 SALAS</span>
+      <div class="sidebar-subtitle">bosques activos · red mesh</div>
+    </div>
+    <div class="sidebar-rooms" id="rooms-list">
+      <!-- rooms rendered here -->
+    </div>
+    <div class="sidebar-footer">
+      <button class="new-room-btn" onclick="createAndJoinNewRoom()">+ Nueva sala del bosque</button>
+    </div>
+  </div>
+
+  <!-- MAIN CHAT AREA -->
+  <div class="chat-area">
+    <div class="chat-header">
+      <div class="h-avatar" id="h-avatar">🦌</div>
+      <div class="h-info">
+        <div class="h-room-tag" id="h-room-tag">🌿 sala</div>
+        <div class="h-name" id="h-name">PUDÚ CHAT DEL BOSQUE</div>
+        <div id="h-status" class="h-status">● conectando...</div>
+      </div>
+      <div class="h-room-counter" id="h-room-counter">
+        <span>🦌</span><span id="h-room-count">0</span>
+      </div>
+      <div class="h-logo">🌿</div>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div id="load-more-sentinel" class="hidden" onclick="loadOlderMessages()">↑ mensajes anteriores ↑</div>
+      <div class="sys-msg">⚡ PUDÚ CHAT · RED DIMENSIONAL ⚡</div>
+      <div class="sys-msg">🦌 bienvenid@ al bosque nativo chileno · red P2P</div>
+      <div class="typing-ind" id="typing-ind">
+        <div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <textarea class="chat-input" id="chat-input" placeholder="escribe algo, habitante del bosque..." rows="1" disabled></textarea>
+      <button class="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- PUDÚ 3D OVERLAY -->
+<div id="pudu3d-overlay">
+  <div id="pudu3d-vignette"></div>
+  <canvas id="pudu3d-canvas"></canvas>
+  <div id="pudu3d-caption"></div>
+</div>
+
+<div class="react-picker hidden" id="react-picker">
+  <span class="rpick" data-e="⭐">⭐</span>
+  <span class="rpick" data-e="🦌">🦌</span>
+  <span class="rpick" data-e="😂">😂</span>
+  <span class="rpick" data-e="🤘">🤘</span>
+  <span class="rpick" data-e="🌿">🌿</span>
+  <span class="rpick" data-e="🔥">🔥</span>
+  <span class="rpick" data-e="🫐">🫐</span>
+  <span class="rpick" data-e="✨">✨</span>
+</div>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════════
+//  PUDÚ CHAT v4 — Bosque de Salas
+//  Sistema multi-sala con max 15 peers por sala
+//  Cada sala tiene su propia red P2P aislada
+// ═══════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════
+//  NAMING MANAGER — nombres temáticos del bosque
+// ══════════════════════════════════════════════════════════════
+const ROOM_NAME_POOL = [
+  'Paraíso Pudú','Reunión del Maqui','Activismo Pudú','Pudú y la Niebla',
+  'Bosque Interior','Tierra y Memoria','Sendero Pudú','Pudú Filosófico',
+  'Esperanza del Bosque','Pudú del Maqui','Círculo Pudú','Pudú y la Lluvia',
+  'Respiro del Bosque','Reflexión Pudú','Guardián del Maqui','Pudú Salvaje',
+  'Laguna Pudú','Pudú y el Quillay','Silencio del Bosque','Pudú Soñador',
+  'Raíces del Bosque','Pudú y la Aurora','Noche del Maqui','Pudú Libre',
+  'Valle del Pudú','Pudú y la Bruma','Semilla del Bosque','Pudú Ancestral',
+  'Quebrada Pudú','Pudú y el Helecho','Madrugada del Bosque','Pudú Sereno',
+];
+const usedRoomNames = new Set();
+let roomNameIndex = 0;
+function generateRoomName(){
+  // primero intentar del pool sin repetir
+  for(let i=0;i<ROOM_NAME_POOL.length;i++){
+    const name=ROOM_NAME_POOL[(roomNameIndex+i)%ROOM_NAME_POOL.length];
+    if(!usedRoomNames.has(name)){
+      usedRoomNames.add(name);
+      roomNameIndex=(roomNameIndex+i+1)%ROOM_NAME_POOL.length;
+      return name;
+    }
+  }
+  // fallback: combinar
+  const adj=['Nuevo','Alto','Profundo','Eterno','Sereno'];
+  const base=['Pudú','Maqui','Bosque','Quillay','Niebla'];
+  return `${adj[Math.floor(Math.random()*adj.length)]} ${base[Math.floor(Math.random()*base.length)]}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ROOM MANAGER — estructura de salas activas
+// ══════════════════════════════════════════════════════════════
+const MAX_PER_ROOM = 15;  // cap duro
+const MAX_PEERS    = 6;   // peers WebRTC por sala (del original)
+const rooms = new Map();  // roomId -> RoomData
+/*
+RoomData: {
+  roomId, roomName,
+  users: Set(pubKeyHex),   // peers conocidos en esta sala
+  peers: Map(pubKeyHex -> PeerState),
+  msgArchive: [],
+  msgEls: {},
+  seenMsgIds: Set,
+  reactions: {},
+  typingPeers: Set,
+  typTO: null
+}
+*/
+let currentRoomId = null;
+
+function roomStatus(room){
+  const n=room.users.size;
+  if(n>=MAX_PER_ROOM) return 'full';
+  if(n>=MAX_PER_ROOM-3) return 'almost';
+  return 'available';
+}
+
+function findBestRoom(){
+  let best=null,bestCount=Infinity;
+  for(const[id,r] of rooms){
+    if(r.users.size<MAX_PER_ROOM && r.users.size<bestCount){
+      best=id; bestCount=r.users.size;
+    }
+  }
+  return best;
+}
+
+function createRoom(name){
+  const roomId='room-'+crypto.randomUUID().slice(0,8);
+  const roomName=name||generateRoomName();
+  rooms.set(roomId,{
+    roomId,roomName,
+    users:new Set([pubKeyHex]),
+    peers:new Map(),
+    msgArchive:[],msgEls:{},
+    seenMsgIds:new Set(),reactions:{},
+    typingPeers:new Set(),typTO:null,
+    vsOffset:0,
+  });
+  return roomId;
+}
+
+function assignRoom(){
+  const best=findBestRoom();
+  if(best) return best;
+  return createRoom(); // crear nueva si todo lleno
+}
+
+// ══════════════════════════════════════════════════════════════
+//  NOMBRES Y UTILS
+// ══════════════════════════════════════════════════════════════
+const ANIMALES = ['Pudú','Huemul','Guiña','Vizcacha','Coipo','Chungungo','Puma','Zorro','Quique','Culpeo','Monito del Monte','Güiña','Degú','Chinchilla','Peuco','Tricahue','Cóndor','Garuma','Lobo de Mar','Nutria','Carpintero','Tiuque','Cachudito','Rayadito'];
+const PALABRAS_MAGICAS = ['Camahueto','Pincoya','Trauco','Colo-Colo','Cherufe','Basilisco','Alicanto','Invunche','Fiura','Piuchén','Caleuche','Imbunche','Millalobo','Anchimallén','Guallipén','Carbunclo','Chonchón','Trelquehue','Cucao','Colocolo','Nakaq','Huecuvú','Nguruvilu'];
+const GARABATOS = [
+  {re:/\bw[ae3]o+n(a[sz]?)?\b/gi,r:'huemul'},{re:/\bhu[ea]v[oó]n(a[sz]?)?\b/gi,r:'cóndor'},
+  {re:/\bgu[ea]v[oó]n(a[sz]?)?\b/gi,r:'cóndor'},{re:/\bctm\b/gi,r:'maqui'},
+  {re:/\bconcha\s?tu?\s?madre?\b/gi,r:'murtilla'},{re:/\bc\.?t\.?m\.?\b/gi,r:'maqui'},
+  {re:/\bconchesumadre\b/gi,r:'murtilla'},{re:/\baw[ea3]ona[od]+\b/gi,r:'guiñazo'},
+  {re:/\bhw[ea]ona[od]+\b/gi,r:'guiñazo'},{re:/\bculia+o\b/gi,r:'chilco'},
+  {re:/\bculia+[od]a+\b/gi,r:'chilco'},{re:/\bculi+ao\b/gi,r:'chilco'},
+  {re:/\bkonche\s?tu\s?mare\b/gi,r:'murtilla'},{re:/\bchucha\b/gi,r:'digüeñe'},
+  {re:/\bchuche\b/gi,r:'digüeñe'},{re:/\bchuchatumare\b/gi,r:'digüeñe'},
+  {re:/\bcsm\b/gi,r:'coicopé'},{re:/\bputa(?:madre|s)?\b/gi,r:'pangue'},
+  {re:/\bputama+dre\b/gi,r:'pangue'},{re:/\bmierda\b/gi,r:'maqui silvestre'},
+  {re:/\bgil\b/gi,r:'güiña'},{re:/\bgil[ae]s?\b/gi,r:'güiña'},
+  {re:/\bcaga[od][ao]?\b/gi,r:'coipo'},{re:/\bmaraco\b/gi,r:'cachudito'},
+  {re:/\bpic(o|u)\s+(tus?|su)\b/gi,r:'quillay'},{re:/\bándate\s+a\s+la\s+chucha\b/gi,r:'ándate al bosque'},
+  {re:/\bandate\s+a\s+la\s+chucha\b/gi,r:'ándate al bosque'},
+];
+function filtrarGarabatos(t){for(const{re,r}of GARABATOS)t=t.replace(re,r);return t;}
+function randomName(){return `${ANIMALES[Math.floor(Math.random()*ANIMALES.length)]} ${PALABRAS_MAGICAS[Math.floor(Math.random()*PALABRAS_MAGICAS.length)]}`;}
+const ANIMAL_EMOJIS={'Pudú':'🦌','Huemul':'🦌','Guiña':'🐱','Güiña':'🐱','Vizcacha':'🐭','Coipo':'🦦','Chungungo':'🦦','Puma':'🐆','Zorro':'🦊','Quique':'🦡','Culpeo':'🦊','Monito del Monte':'🐨','Degú':'🐭','Chinchilla':'🐹','Peuco':'🦅','Tricahue':'🦜','Cóndor':'🦅','Garuma':'🐦','Lobo de Mar':'🦭','Nutria':'🦦','Carpintero':'🐦','Tiuque':'🦅','Cachudito':'🐦','Rayadito':'🐦'};
+function avatarFor(name){return ANIMAL_EMOJIS[name?name.split(' ')[0]:'']||'🌿';}
+function uid(){return crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2);}
+function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ══════════════════════════════════════════════════════════════
+//  CONSTANTES
+// ══════════════════════════════════════════════════════════════
+const SIG_TTL         = 90;
+const PEER_TIMEOUT    = 40000;
+const ICE_BATCH_DELAY = 200;
+const HELLO_INTERVAL  = 25000;
+const RECONNECT_MAX   = 5;
+const DOM_MSG_LIMIT   = 60;
+const MSG_ARCHIVE_KEEP= 400;
+const MAX_HOPS        = 3;
+// Nostr tag de descubrimiento global — las salas se diferencian por roomId en el payload
+const GLOBAL_TAG      = "pudu-chat-bosque-v4";
+
+const ICE_SERVERS = [
+  {urls:"stun:stun.l.google.com:19302"},
+  {urls:"stun:stun1.l.google.com:19302"},
+  {urls:"stun:stun2.l.google.com:19302"},
+  {urls:"stun:stun3.l.google.com:19302"},
+  {urls:"stun:stun.cloudflare.com:3478"},
+  {urls:"stun:stun.relay.metered.ca:80"},
+  {urls:"stun:stun.stunprotocol.org:3478"},
+  {urls:"stun:stun.voipbuster.com:3478"},
+];
+
+const RELAY_URLS = [
+  "wss://relay.damus.io","wss://nos.lol","wss://offchain.pub",
+  "wss://relay.nostr.band/all","wss://nostr.mom",
+  "wss://relay.snort.social","wss://relay.primal.net","wss://purplepag.es",
+];
+
+// ══════════════════════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ══════════════════════════════════════════════════════════════
+let myName       = null;
+let privKeyBytes = null;
+let pubKeyHex    = "";
+let nostrMod     = null;
+let nostrSockets = {};
+let nostrDotEls  = {};
+let nostrSeen    = new Set();
+let chatEntered  = false;
+let pickerMsgId  = null;
+
+// ── NOSTR CRYPTO ────────────────────────────────────────────
+// Identidad persistente: mismo dispositivo/navegador = mismo peer
+const IDENTITY_KEY = 'pudu-identity-v1';
+async function generateKeypair(){
+  nostrMod = await import("https://esm.sh/nostr-tools@2/pure");
+  try {
+    const saved = localStorage.getItem(IDENTITY_KEY);
+    if(saved){
+      const {priv, pub, name} = JSON.parse(saved);
+      privKeyBytes = new Uint8Array(priv);
+      pubKeyHex    = pub;
+      if(name && !myName) myName = name;
+      return;
+    }
+  } catch{}
+  privKeyBytes = nostrMod.generateSecretKey();
+  pubKeyHex    = nostrMod.getPublicKey(privKeyBytes);
+  try{
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify({
+      priv: Array.from(privKeyBytes), pub: pubKeyHex, name: null
+    }));
+  }catch{}
+}
+function persistName(name){
+  try{
+    const saved = localStorage.getItem(IDENTITY_KEY);
+    if(saved){ const obj=JSON.parse(saved); obj.name=name; localStorage.setItem(IDENTITY_KEY,JSON.stringify(obj)); }
+  }catch{}
+}
+async function signAndPublish(content){
+  const template={kind:1,created_at:Math.floor(Date.now()/1000),tags:[["t",GLOBAL_TAG]],content:JSON.stringify(content)};
+  let event;
+  try{event=nostrMod.finalizeEvent(template,privKeyBytes);}catch{return null;}
+  nostrSeen.add(event.id);
+  const raw=JSON.stringify(["EVENT",event]);
+  let sent=0;
+  for(const ws of Object.values(nostrSockets)){if(ws?.readyState===1){ws.send(raw);sent++;}}
+  return sent>0?event.id:null;
+}
+
+// ── NOSTR RELAY ────────────────────────────────────────────
+function connectNostrRelay(url){
+  const dotsContainer=document.getElementById('relay-dots');
+  const dot=document.createElement('div');
+  dot.className='rdot connecting';dot.title=url;
+  dotsContainer.appendChild(dot);
+  nostrDotEls[url]=dot;
+  let retryDelay=3000;
+  function connect(){
+    if(nostrSockets[url]?.readyState<=1)return;
+    const ws=new WebSocket(url);
+    nostrSockets[url]=ws;
+    ws.onopen=()=>{
+      dot.className='rdot ok';retryDelay=3000;
+      const since=Math.floor(Date.now()/1000)-SIG_TTL*4;
+      ws.send(JSON.stringify(["REQ","sig-sub",{kinds:[1],"#t":[GLOBAL_TAG],since}]));
+    };
+    ws.onmessage=(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        if(msg[0]==="EVENT")handleNostrEvent(msg[2]);
+        else if(msg[0]==="EOSE")onRelayReady();
+      }catch{}
+    };
+    ws.onerror=()=>{dot.className='rdot fail';};
+    ws.onclose=()=>{
+      dot.className='rdot fail';nostrSockets[url]=null;
+      setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,60000);
+    };
+  }
+  connect();
+}
+
+let relayReadyCalled=false;
+function onRelayReady(){
+  if(relayReadyCalled)return;relayReadyCalled=true;
+  updateStatus();
+  if(myName && !discoveryDone){
+    document.getElementById('connecting-text').textContent=`Hola, \${myName} 🦌 — buscando salas...`;
+    clearTimeout(discoveryTimer);
+    discoveryTimer=setTimeout(finishDiscoveryAndEnter,2500);
+  }
+}
+
+// ── NOSTR EVENT HANDLER ─────────────────────────────────────
+function handleNostrEvent(ev){
+  if(!ev?.id||nostrSeen.has(ev.id))return;
+  nostrSeen.add(ev.id);
+  if(nostrSeen.size>3000){const arr=[...nostrSeen];nostrSeen=new Set(arr.slice(arr.length-1500));}
+  const age=Math.floor(Date.now()/1000)-(ev.created_at||0);
+  if(age>SIG_TTL*4||age<-30)return;
+  let data;
+  try{data=JSON.parse(ev.content);}catch{return;}
+  if(ev.pubkey===pubKeyHex)return;
+  const fromPub=ev.pubkey;
+  const msgRoomId=data.roomId;
+
+  switch(data.type){
+    case 'hello':{
+      if(!msgRoomId) break;
+      // Registrar / actualizar sala en mapa local
+      if(data.roomName && !rooms.has(msgRoomId)){
+        rooms.set(msgRoomId,{
+          roomId:msgRoomId,roomName:data.roomName,
+          users:new Set([fromPub]),
+          peers:new Map(),
+          msgArchive:[],msgEls:{},
+          seenMsgIds:new Set(),reactions:{},
+          typingPeers:new Set(),typTO:null,vsOffset:0,
+        });
+      } else if(rooms.has(msgRoomId)){
+        rooms.get(msgRoomId).users.add(fromPub);
+      }
+      // Si ya estamos en esta sala → conectar
+      if(msgRoomId===currentRoomId){
+        if(data.name)updatePeerNameInRoom(currentRoomId,fromPub,data.name);
+        maybeConnectTo(currentRoomId,fromPub,data.name);
+        if(!getRoomPeer(currentRoomId,fromPub)){
+          setTimeout(()=>signAndPublish({
+            type:'hello',roomId:currentRoomId,roomName:rooms.get(currentRoomId)?.roomName,
+            from:pubKeyHex,name:myName,ts:Date.now()
+          }),Math.random()*1500);
+        }
+      } else if(currentRoomId && msgRoomId!==currentRoomId){
+        // Alguien en otra sala: responder con la nuestra para que la descubra
+        setTimeout(()=>signAndPublish({
+          type:'hello',roomId:currentRoomId,roomName:rooms.get(currentRoomId)?.roomName,
+          from:pubKeyHex,name:myName,ts:Date.now()
+        }),Math.random()*2000+500);
+      }
+      renderRoomSidebar();
+      break;
+    }
+    case 'offer':
+      if(data.to!==pubKeyHex)return;
+      if(data.roomId)handleOffer(data.roomId,fromPub,data.name,data.sdp);
+      break;
+    case 'answer':
+      if(data.to!==pubKeyHex)return;
+      if(data.roomId)handleAnswer(data.roomId,fromPub,data.sdp);
+      break;
+    case 'candidate':
+      if(data.to!==pubKeyHex)return;
+      if(data.roomId)handleRemoteCandidate(data.roomId,fromPub,data.candidates);
+      break;
+    case 'bye':
+      if(data.roomId)closePeer(data.roomId,fromPub,false);
+      break;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PEER MANAGER — WebRTC por sala
+// ══════════════════════════════════════════════════════════════
+function getRoomPeers(roomId){return rooms.get(roomId)?.peers;}
+function getRoomPeer(roomId,pub){return rooms.get(roomId)?.peers.get(pub);}
+
+function countConnectedPeersInRoom(roomId){
+  const peers=getRoomPeers(roomId);if(!peers)return 0;
+  let n=0;
+  for(const p of peers.values())if(p.dc?.readyState==='open')n++;
+  return n;
+}
+
+function maybeConnectTo(roomId,remotePub,remoteName){
+  if(remotePub===pubKeyHex)return;
+  const room=rooms.get(roomId);if(!room)return;
+  if(room.users.size>=MAX_PER_ROOM){showRoomFullToast();return;}
+  const existing=room.peers.get(remotePub);
+  if(existing&&['connected','connecting'].includes(existing.status))return;
+  if(countConnectedPeersInRoom(roomId)>=MAX_PEERS)return;
+  if(pubKeyHex<remotePub)createOffer(roomId,remotePub,remoteName);
+}
+
+function makePeerConnection(roomId,remotePub){
+  const room=rooms.get(roomId);if(!room)return null;
+  const existing=room.peers.get(remotePub);
+  if(existing&&['connected','connecting'].includes(existing.status))return existing;
+  if(existing)closePeer(roomId,remotePub,false);
+
+  const pc=new RTCPeerConnection({
+    iceServers:ICE_SERVERS,bundlePolicy:'max-bundle',
+    iceCandidatePoolSize:10,iceTransportPolicy:'all',
+  });
+  const peerState={pc,dc:null,name:null,status:'connecting',
+    lastSeen:Date.now(),iceBatch:[],iceTimer:null,
+    reconnectCount:0,reconnectTimer:null};
+  room.peers.set(remotePub,peerState);
+
+  pc.onicecandidate=({candidate})=>{
+    if(!candidate)return;
+    peerState.iceBatch.push(candidate.toJSON());
+    clearTimeout(peerState.iceTimer);
+    peerState.iceTimer=setTimeout(()=>{
+      if(!peerState.iceBatch.length)return;
+      signAndPublish({type:'candidate',roomId,to:remotePub,from:pubKeyHex,candidates:peerState.iceBatch});
+      peerState.iceBatch=[];
+    },ICE_BATCH_DELAY);
+  };
+
+  pc.onicegatheringstatechange=()=>{
+    if(pc.iceGatheringState==='complete'){
+      pc.getStats().then(report=>{
+        const stats=[];
+        report.forEach(s=>{if(s.type==='local-candidate')stats.push(s.candidateType);});
+        if(stats.includes('srflx')&&!stats.includes('host')&&!stats.includes('relay')){
+          peerState._maySym=true;
+        }
+      }).catch(()=>{});
+    }
+  };
+
+  pc.onconnectionstatechange=()=>{
+    const s=pc.connectionState;
+    if(s==='connected'){
+      peerState.status='connected';peerState.reconnectCount=0;
+      clearTimeout(peerState.reconnectTimer);
+      room.users.add(remotePub);
+      if(roomId===currentRoomId){updateStatus();updateMeshIndicator();
+        addSystemMsgVS(roomId,`🌿 Conectado P2P con ${peerState.name||remotePub.slice(0,8)} 🦌`);}
+      renderRoomSidebar();
+    } else if(['failed','disconnected'].includes(s)){
+      scheduleReconnect(roomId,remotePub);
+    } else if(s==='closed'){
+      if(peerState.status!=='closed'&&roomId===currentRoomId){
+        addSystemMsgVS(roomId,`🍂 Se fue del bosque: ${peerState.name||remotePub.slice(0,8)}`);
+      }
+      closePeer(roomId,remotePub,false);
+    }
+    if(roomId===currentRoomId)updateStatus();
+  };
+  pc.ondatachannel=(e)=>setupDataChannel(roomId,remotePub,e.channel);
+  return peerState;
+}
+
+function scheduleReconnect(roomId,remotePub){
+  const room=rooms.get(roomId);if(!room)return;
+  const peerState=room.peers.get(remotePub);
+  if(!peerState||peerState.status==='closed')return;
+  if(peerState.reconnectCount>=RECONNECT_MAX){
+    if(peerState._maySym&&roomId===currentRoomId)addNatWarning(peerState.name||remotePub.slice(0,8));
+    if(roomId===currentRoomId)addSystemMsgVS(roomId,`🍂 No se pudo reconectar con ${peerState.name||remotePub.slice(0,8)}`);
+    closePeer(roomId,remotePub,false);return;
+  }
+  peerState.reconnectCount++;
+  const delay=Math.pow(2,peerState.reconnectCount-1)*1000;
+  if(roomId===currentRoomId)addSystemMsgVS(roomId,`🔄 Reconectando con ${peerState.name||remotePub.slice(0,8)}... (${peerState.reconnectCount}/${RECONNECT_MAX})`);
+  clearTimeout(peerState.reconnectTimer);
+  peerState.reconnectTimer=setTimeout(async()=>{
+    const r=rooms.get(roomId);if(!r||!r.peers.has(remotePub))return;
+    try{peerState.dc?.close();}catch{}try{peerState.pc?.close();}catch{}
+    const newState=makePeerConnection(roomId,remotePub);if(!newState)return;
+    if(pubKeyHex<remotePub)await createOffer(roomId,remotePub,peerState.name);
+    else signAndPublish({type:'hello',roomId,from:pubKeyHex,name:myName,roomName:rooms.get(roomId)?.roomName,ts:Date.now()});
+  },delay);
+}
+
+function addNatWarning(peerName){
+  const c=document.getElementById('chat-messages');
+  const ti=document.getElementById('typing-ind');
+  const d=document.createElement('div');d.className='nat-warn';
+  d.textContent=`⚠️ ${peerName}: posible NAT simétrico. El mensaje puede llegar igual por mesh relay 🕸`;
+  if(ti)c.insertBefore(d,ti);else c.appendChild(d);
+}
+
+function setupDataChannel(roomId,remotePub,channel){
+  const room=rooms.get(roomId);if(!room)return;
+  const peerState=room.peers.get(remotePub);if(!peerState)return;
+  peerState.dc=channel;
+  channel.onopen=()=>{
+    peerState.status='connected';peerState.lastSeen=Date.now();
+    room.users.add(remotePub);
+    if(roomId===currentRoomId){updateStatus();updateMeshIndicator();}
+    renderRoomSidebar();
+    sendToPeer(roomId,remotePub,{type:'join',senderId:pubKeyHex,name:myName,roomId,ts:Date.now(),id:uid()});
+  };
+  channel.onclose=()=>{if(peerState.status!=='closed')scheduleReconnect(roomId,remotePub);};
+  channel.onerror=()=>{scheduleReconnect(roomId,remotePub);};
+  channel.onmessage=(e)=>{try{handleP2PMessage(roomId,remotePub,JSON.parse(e.data));}catch{}};
+}
+
+async function createOffer(roomId,remotePub,remoteName){
+  const peerState=makePeerConnection(roomId,remotePub);if(!peerState)return;
+  if(remoteName)peerState.name=remoteName;
+  const dc=peerState.pc.createDataChannel('chat',{ordered:true});
+  setupDataChannel(roomId,remotePub,dc);
+  try{
+    const offer=await peerState.pc.createOffer();
+    await peerState.pc.setLocalDescription(offer);
+    await signAndPublish({type:'offer',roomId,to:remotePub,from:pubKeyHex,name:myName,sdp:peerState.pc.localDescription.sdp});
+  }catch{closePeer(roomId,remotePub,false);}
+}
+
+async function handleOffer(roomId,fromPub,fromName,sdpText){
+  const room=rooms.get(roomId);
+  if(!room){
+    // sala desconocida — no conectar
+    await signAndPublish({type:'bye',roomId,to:fromPub,from:pubKeyHex,reason:'unknown-room'});
+    return;
+  }
+  if(room.users.size>=MAX_PER_ROOM&&!room.peers.has(fromPub)){
+    await signAndPublish({type:'bye',roomId,to:fromPub,from:pubKeyHex,reason:'full'});
+    return;
+  }
+  if(countConnectedPeersInRoom(roomId)>=MAX_PEERS&&!room.peers.has(fromPub)){
+    await signAndPublish({type:'bye',roomId,to:fromPub,from:pubKeyHex,reason:'full'});
+    return;
+  }
+  const peerState=makePeerConnection(roomId,fromPub);if(!peerState)return;
+  if(fromName)peerState.name=fromName;
+  try{
+    await peerState.pc.setRemoteDescription({type:'offer',sdp:sdpText});
+    const answer=await peerState.pc.createAnswer();
+    await peerState.pc.setLocalDescription(answer);
+    await signAndPublish({type:'answer',roomId,to:fromPub,from:pubKeyHex,name:myName,sdp:peerState.pc.localDescription.sdp});
+  }catch{closePeer(roomId,fromPub,false);}
+}
+
+async function handleAnswer(roomId,fromPub,sdpText){
+  const p=getRoomPeer(roomId,fromPub);if(!p)return;
+  try{await p.pc.setRemoteDescription({type:'answer',sdp:sdpText});}catch{}
+}
+
+async function handleRemoteCandidate(roomId,fromPub,candidates){
+  const p=getRoomPeer(roomId,fromPub);if(!p)return;
+  for(const c of(Array.isArray(candidates)?candidates:[candidates])){
+    try{await p.pc.addIceCandidate(new RTCIceCandidate(c));}catch{}
+  }
+}
+
+function closePeer(roomId,remotePub,sendBye){
+  const room=rooms.get(roomId);if(!room)return;
+  const p=room.peers.get(remotePub);if(!p)return;
+  p.status='closed';
+  clearTimeout(p.iceTimer);clearTimeout(p.reconnectTimer);
+  try{p.dc?.close();}catch{}try{p.pc?.close();}catch{}
+  room.peers.delete(remotePub);
+  room.users.delete(remotePub);
+  if(roomId===currentRoomId){updateStatus();updateMeshIndicator();}
+  renderRoomSidebar();
+  if(sendBye)signAndPublish({type:'bye',roomId,to:remotePub,from:pubKeyHex});
+}
+
+function closeAllPeersInRoom(roomId){
+  const room=rooms.get(roomId);if(!room)return;
+  for(const[pub,p] of room.peers){
+    p.status='closed';
+    clearTimeout(p.iceTimer);clearTimeout(p.reconnectTimer);
+    try{p.dc?.close();}catch{}try{p.pc?.close();}catch{}
+  }
+  room.peers.clear();
+}
+
+function updatePeerNameInRoom(roomId,remotePub,name){
+  const p=getRoomPeer(roomId,remotePub);if(p)p.name=name;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MESH RELAY — dentro de cada sala
+// ══════════════════════════════════════════════════════════════
+function sendToPeer(roomId,remotePub,msg){
+  const p=getRoomPeer(roomId,remotePub);
+  if(!p||p.dc?.readyState!=='open')return false;
+  try{p.dc.send(JSON.stringify(msg));return true;}catch{return false;}
+}
+
+function broadcastP2P(roomId,msg,excludePub=null){
+  const peers=getRoomPeers(roomId);if(!peers)return 0;
+  let sent=0;
+  for(const[pub]of peers){if(pub!==excludePub&&sendToPeer(roomId,pub,msg))sent++;}
+  return sent;
+}
+
+function meshRelay(roomId,msg,fromPub){
+  if((msg.hops??0)>=MAX_HOPS)return;
+  const relayed={...msg,hops:(msg.hops??0)+1};
+  const peers=getRoomPeers(roomId);if(!peers)return;
+  for(const[pub]of peers){if(pub!==fromPub)sendToPeer(roomId,pub,relayed);}
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MESSAGE MANAGER — mensajes por sala aislados
+// ══════════════════════════════════════════════════════════════
+function handleP2PMessage(roomId,fromPub,msg){
+  const room=rooms.get(roomId);if(!room)return;
+  if(!msg?.type||!msg?.id)return;
+  if(room.seenMsgIds.has(msg.id))return;
+  room.seenMsgIds.add(msg.id);
+  if(room.seenMsgIds.size>3000){const arr=[...room.seenMsgIds];room.seenMsgIds=new Set(arr.slice(arr.length-1500));}
+  const peerState=room.peers.get(fromPub);
+  if(peerState)peerState.lastSeen=Date.now();
+
+  switch(msg.type){
+    case 'join':
+      if(msg.name)updatePeerNameInRoom(roomId,fromPub,msg.name);
+      room.users.add(fromPub);
+      renderRoomSidebar();
+      if(roomId===currentRoomId){
+        updateStatus();
+        addSystemMsgVS(roomId,`🌿 ${escapeHtml(msg.name||fromPub.slice(0,8))} entró al bosque 🦌`);
+      }
+      sendToPeer(roomId,fromPub,{type:'presence',id:uid(),roomId,senderId:pubKeyHex,name:myName,ts:Date.now()});
+      break;
+    case 'leave':
+      if(roomId===currentRoomId)addSystemMsgVS(roomId,`🍂 ${escapeHtml(msg.name||fromPub.slice(0,8))} salió del bosque`);
+      closePeer(roomId,fromPub,false);break;
+    case 'presence':
+      if(msg.name)updatePeerNameInRoom(roomId,fromPub,msg.name);
+      room.users.add(fromPub);
+      if(roomId===currentRoomId)updateStatus();
+      renderRoomSidebar();break;
+    case 'chat':{
+      if(!msg.payload?.text||!msg.senderId)return;
+      const text=filtrarGarabatos(String(msg.payload.text).slice(0,2000));
+      const name=msg.payload.name||peerState?.name||fromPub.slice(0,8);
+      if(roomId===currentRoomId){
+        addMsgToVS(roomId,msg.id,name,text,false,msg.ts);
+        try{add3DText(text,false);}catch{}
+        try{playPuduMeow(0.9+Math.random()*0.3,'chirp');}catch{}
+      }
+      meshRelay(roomId,msg,fromPub);
+      break;}
+    case 'reaction':{
+      if(!msg.payload?.msgId||!msg.payload?.emoji)return;
+      const{msgId,emoji}=msg.payload;
+      const rname=msg.payload.name||peerState?.name||fromPub.slice(0,8);
+      if(!room.reactions[msgId])room.reactions[msgId]={};
+      room.reactions[msgId][rname]=emoji;
+      if(roomId===currentRoomId)updateReactionsUI(room,msgId);
+      meshRelay(roomId,msg,fromPub);
+      break;}
+    case 'typing':{
+      if(roomId!==currentRoomId)return;
+      const tname=msg.name||peerState?.name;if(!tname)return;
+      room.typingPeers.add(tname);updateTypingIndicator(room);
+      clearTimeout(room.typTO);
+      room.typTO=setTimeout(()=>{room.typingPeers.delete(tname);updateTypingIndicator(room);},3000);
+      break;}
+    case 'ping':
+      sendToPeer(roomId,fromPub,{type:'pong',id:uid(),roomId,senderId:pubKeyHex,ts:Date.now()});break;
+    case 'pong':
+      if(peerState)peerState.lastSeen=Date.now();break;
+  }
+}
+
+// Ping periódico
+setInterval(()=>{
+  if(!currentRoomId)return;
+  const now=Date.now();
+  const peers=getRoomPeers(currentRoomId);if(!peers)return;
+  for(const[pub,p]of peers){
+    if(p.dc?.readyState==='open'){
+      sendToPeer(currentRoomId,pub,{type:'ping',id:uid(),roomId:currentRoomId,senderId:pubKeyHex,ts:now});
+      if(now-p.lastSeen>PEER_TIMEOUT){
+        addSystemMsgVS(currentRoomId,`⏱️ Timeout con ${p.name||pub.slice(0,8)}`);
+        scheduleReconnect(currentRoomId,pub);
+      }
+    }
+  }
+},15000);
+
+// ══════════════════════════════════════════════════════════════
+//  VIRTUAL SCROLL / MESSAGE ARCHIVE (por sala)
+// ══════════════════════════════════════════════════════════════
+function archiveMsg(room,entry){
+  room.msgArchive.push(entry);
+  if(room.msgArchive.length>MSG_ARCHIVE_KEEP){
+    room.msgArchive.shift();
+    if(room.vsOffset>0)room.vsOffset=Math.max(0,room.vsOffset-1);
+  }
+}
+
+function pruneDOM(){
+  const c=document.getElementById('chat-messages');
+  if(!c)return;
+  const room=rooms.get(currentRoomId);if(!room)return;
+  const rows=[...c.querySelectorAll('.msg-row')];
+  const excess=rows.length-DOM_MSG_LIMIT;
+  if(excess<=0)return;
+  for(let i=0;i<excess;i++){
+    const row=rows[i];
+    if(row&&row.dataset.id){delete room.msgEls[row.dataset.id];row.remove();}
+  }
+  document.getElementById('load-more-sentinel').classList.remove('hidden');
+}
+
+window.loadOlderMessages=function(){
+  const room=rooms.get(currentRoomId);if(!room)return;
+  const visibleIds=new Set(Object.keys(room.msgEls));
+  let oldestInDom=room.msgArchive.length;
+  for(let i=0;i<room.msgArchive.length;i++){if(visibleIds.has(room.msgArchive[i].id)){oldestInDom=i;break;}}
+  const batchStart=Math.max(0,oldestInDom-20);
+  const batch=room.msgArchive.slice(batchStart,oldestInDom);
+  if(batch.length===0){document.getElementById('load-more-sentinel').classList.add('hidden');return;}
+  const c=document.getElementById('chat-messages');
+  const prevScrollH=c.scrollHeight;
+  const firstRow=c.querySelector('.msg-row');
+  for(let i=batch.length-1;i>=0;i--){
+    const e=batch[i];if(room.msgEls[e.id])continue;
+    const row=e.isSystem?buildSysRow(e.text):buildMsgRow(room,e);
+    row.classList.add('offscreen');
+    if(firstRow)c.insertBefore(row,firstRow);else{const ti=document.getElementById('typing-ind');if(ti)c.insertBefore(row,ti);else c.appendChild(row);}
+    if(!e.isSystem)room.msgEls[e.id]=row;
+  }
+  c.scrollTop=c.scrollHeight-prevScrollH+c.scrollTop;
+  if(batchStart===0)document.getElementById('load-more-sentinel').classList.add('hidden');
+};
+
+function buildSysRow(text){
+  const d=document.createElement('div');d.className='sys-msg';d.textContent=text;return d;
+}
+
+function buildMsgRow(room,e){
+  const row=document.createElement('div');
+  row.className=`msg-row ${e.isMe?'me':'other'}`;row.dataset.id=e.id;
+  const snd=document.createElement('div');snd.className='msg-sender';
+  snd.textContent=e.isMe?'tú':escapeHtml(e.user);
+  const bub=document.createElement('div');bub.className='msg-bubble';bub.textContent=e.text;
+  let pt;
+  bub.addEventListener('touchstart',()=>{pt=setTimeout(()=>showPicker(e.id,bub),500);},{passive:true});
+  bub.addEventListener('touchend',()=>clearTimeout(pt));
+  bub.addEventListener('touchmove',()=>clearTimeout(pt));
+  bub.addEventListener('contextmenu',ev=>{ev.preventDefault();showPicker(e.id,bub);});
+  bub.addEventListener('dblclick',()=>showPicker(e.id,bub));
+  const tm=document.createElement('div');tm.className='msg-time';
+  const d=new Date(e.ts||Date.now());
+  tm.textContent=d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+  const reactDiv=document.createElement('div');reactDiv.className='msg-reactions';reactDiv.id=`react-${e.id}`;
+  row.appendChild(snd);row.appendChild(bub);row.appendChild(reactDiv);row.appendChild(tm);
+  return row;
+}
+
+function addMsgToVS(roomId,id,user,text,isMe,ts){
+  const room=rooms.get(roomId);if(!room)return;
+  if(room.msgEls[id])return;
+  const entry={id,user,text,isMe,ts:ts||Date.now(),isSystem:false};
+  archiveMsg(room,entry);
+  if(roomId!==currentRoomId)return; // no renderizar si no es sala activa
+  const c=document.getElementById('chat-messages');
+  const atBot=c.scrollHeight-c.scrollTop-c.clientHeight<120;
+  const row=buildMsgRow(room,entry);
+  room.msgEls[id]=row;
+  const ti=document.getElementById('typing-ind');
+  if(ti)c.insertBefore(row,ti);else c.appendChild(row);
+  pruneDOM();
+  if(atBot)requestAnimationFrame(()=>{c.scrollTop=c.scrollHeight;});
+}
+
+function addSystemMsgVS(roomId,txt){
+  const room=rooms.get(roomId);if(!room)return;
+  const entry={id:uid(),text:txt,isSystem:true,ts:Date.now()};
+  archiveMsg(room,entry);
+  if(roomId!==currentRoomId)return;
+  const c=document.getElementById('chat-messages');
+  const atBot=c.scrollHeight-c.scrollTop-c.clientHeight<120;
+  const d=buildSysRow(txt);
+  const ti=document.getElementById('typing-ind');
+  if(ti)c.insertBefore(d,ti);else c.appendChild(d);
+  pruneDOM();
+  if(atBot)requestAnimationFrame(()=>{c.scrollTop=c.scrollHeight;});
+}
+
+// ══════════════════════════════════════════════════════════════
+//  UI MANAGER
+// ══════════════════════════════════════════════════════════════
+function show(id){
+  ['welcome-screen','connecting-screen','chat-screen'].forEach(s=>
+    document.getElementById(s).classList.toggle('hidden',s!==id));
+}
+
+function renderRoomSidebar(){
+  const list=document.getElementById('rooms-list');if(!list)return;
+  list.innerHTML='';
+  for(const[id,room] of rooms){
+    const count=room.users.size;
+    const status=roomStatus(room);
+    const isActive=id===currentRoomId;
+    const card=document.createElement('div');
+    card.className=`room-card${isActive?' active':''}${status==='full'&&!isActive?' full':''}`;
+    card.dataset.roomId=id;
+    const statusLabels={available:'disponible',almost:'casi llena',full:'llena'};
+    card.innerHTML=`
+      <div class="room-name">🌿 ${escapeHtml(room.roomName)}</div>
+      <div class="room-meta">
+        <span class="room-count">🦌 ${count}/${MAX_PER_ROOM}</span>
+        <span class="room-badge ${status}">${statusLabels[status]}</span>
+        <div class="room-active-dot"></div>
+      </div>
+    `;
+    if(!isActive){
+      card.addEventListener('click',()=>switchRoom(id));
+    }
+    list.appendChild(card);
+  }
+}
+
+function updateReactionsUI(room,msgId){
+  const reactDiv=document.getElementById(`react-${msgId}`);if(!reactDiv)return;
+  const reacts=room.reactions[msgId]||{};
+  const cnt={};
+  Object.values(reacts).forEach(r=>cnt[r]=(cnt[r]||0)+1);
+  reactDiv.innerHTML='';
+  Object.entries(cnt).forEach(([emoji,count])=>{
+    const b=document.createElement('div');b.className='react-badge';
+    b.innerHTML=`${emoji}<span class="react-count">${count>1?count:''}</span>`;
+    b.onclick=()=>addReact(msgId,emoji);
+    reactDiv.appendChild(b);
+  });
+}
+
+function updateTypingIndicator(room){
+  if(!room||room.roomId!==currentRoomId)return;
+  const ti=document.getElementById('typing-ind');if(!ti)return;
+  if(room.typingPeers.size>0){
+    const names=[...room.typingPeers].map(n=>n.split(' ')[0]).join(', ');
+    ti.textContent='';
+    ti.appendChild(document.createTextNode(`${names} escribe`));
+    for(let i=0;i<3;i++){const d=document.createElement('div');d.className='tdot';ti.appendChild(d);}
+    ti.className='typing-ind on';
+  }else{ti.className='typing-ind';}
+}
+
+function updateStatus(){
+  const relaysOk=Object.values(nostrSockets).filter(s=>s?.readyState===1).length;
+  const peersConn=countConnectedPeersInRoom(currentRoomId);
+  const st=document.getElementById('h-status');if(!st)return;
+  if(peersConn>0){
+    st.textContent=`● P2P: ${peersConn} peer${peersConn!==1?'s':''} · Nostr: ${relaysOk} relay${relaysOk!==1?'s':''}`;
+    st.style.color='#4ade80';
+  }else if(relaysOk>0){
+    st.textContent=`🔍 buscando peers... (${relaysOk} relay${relaysOk!==1?'s':''})`;
+    st.style.color='#ffd700';
+  }else{st.textContent='⚠️ sin conexión';st.style.color='#ef4444';}
+  const room=rooms.get(currentRoomId);
+  const cnt=document.getElementById('h-room-count');
+  if(cnt&&room)cnt.textContent=room.users.size;
+  renderRoomSidebar();
+}
+
+function updateMeshIndicator(){
+  const el=document.getElementById('mesh-indicator');if(!el)return;
+  const conn=countConnectedPeersInRoom(currentRoomId);
+  el.textContent=conn>0?`🕸 ${conn} nodo${conn>1?'s':''} mesh`:'🕸 mesh';
+  el.className=conn>0?'active':'';
+}
+
+function updateChatHeader(){
+  const room=rooms.get(currentRoomId);if(!room)return;
+  document.getElementById('h-room-tag').textContent=`🌿 ${room.roomName}`;
+  document.getElementById('h-name').textContent=room.roomName.toUpperCase();
+  const cnt=document.getElementById('h-room-count');
+  if(cnt)cnt.textContent=room.users.size;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ROOM SWITCH — cambiar de sala
+// ══════════════════════════════════════════════════════════════
+function switchRoom(newRoomId){
+  if(newRoomId===currentRoomId)return;
+  const newRoom=rooms.get(newRoomId);
+  if(!newRoom){showRoomFullToast('Sala no encontrada 🌿');return;}
+  if(newRoom.users.size>=MAX_PER_ROOM&&!newRoom.peers.has(pubKeyHex)){
+    showRoomFullToast();return;
+  }
+  // Salir de sala actual
+  if(currentRoomId){
+    const oldRoom=rooms.get(currentRoomId);
+    if(oldRoom){
+      for(const[pub]of oldRoom.peers){
+        sendToPeer(currentRoomId,pub,{type:'leave',id:uid(),roomId:currentRoomId,senderId:pubKeyHex,name:myName,ts:Date.now()});
+      }
+      closeAllPeersInRoom(currentRoomId);
+      oldRoom.users.delete(pubKeyHex);
+    }
+  }
+  const prevName=rooms.get(currentRoomId)?.roomName||'';
+  currentRoomId=newRoomId;
+  newRoom.users.add(pubKeyHex);
+
+  // Resetear UI del chat
+  resetChatDOM();
+  updateChatHeader();
+  updateStatus();
+  updateMeshIndicator();
+  renderRoomSidebar();
+
+  // Anunciar en nueva sala
+  signAndPublish({type:'hello',roomId:currentRoomId,roomName:newRoom.roomName,from:pubKeyHex,name:myName,ts:Date.now()});
+
+  // Render mensajes existentes
+  for(const entry of newRoom.msgArchive){
+    if(!entry.isSystem){
+      const row=buildMsgRow(newRoom,entry);
+      newRoom.msgEls[entry.id]=row;
+      const c=document.getElementById('chat-messages');
+      const ti=document.getElementById('typing-ind');
+      if(ti)c.insertBefore(row,ti);else c.appendChild(row);
+    }
+  }
+
+  addSystemMsgVS(currentRoomId,`🌿 Entraste a "${newRoom.roomName}" 🦌`);
+  showRoomSwitchBanner(`🦌 Movido a "${newRoom.roomName}"${prevName?` desde "${prevName}"`:''}`)
+  try{setupInput();}catch{}
+  // cerrar sidebar en mobile
+  document.getElementById('rooms-sidebar').classList.remove('open');
+}
+
+function resetChatDOM(){
+  const c=document.getElementById('chat-messages');if(!c)return;
+  // Limpiar todo excepto sentinel y sys-msgs iniciales y typing-ind
+  [...c.querySelectorAll('.msg-row,.nat-warn')].forEach(el=>el.remove());
+  document.getElementById('load-more-sentinel').classList.add('hidden');
+}
+
+window.createAndJoinNewRoom=function(){
+  const currRoom=rooms.get(currentRoomId);
+  if(currRoom && currRoom.users.size < MAX_PER_ROOM-1){
+    showRoomFullToast('Tu sala aun tiene espacio 🌿 Espera que se llene primero.');
+    return;
+  }
+  const newId=createRoom();
+  const room=rooms.get(newId);
+  room.users.add(pubKeyHex);
+  switchRoom(newId);
+  signAndPublish({type:'hello',roomId:newId,roomName:room.roomName,from:pubKeyHex,name:myName,ts:Date.now()});
+  renderRoomSidebar();
+};
+
+function showRoomFullToast(msg=null){
+  const t=document.getElementById('room-toast');
+  if(msg)t.innerHTML=`🌿 ${msg}`;
+  else t.innerHTML='🦌 Esta sala ya tiene 15 pudúes hablando,<br>espera que salga uno 🌿';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+let switchBannerTO=null;
+function showRoomSwitchBanner(msg){
+  const b=document.getElementById('room-switch-banner');
+  b.textContent=msg;b.classList.add('show');
+  clearTimeout(switchBannerTO);
+  switchBannerTO=setTimeout(()=>b.classList.remove('show'),3000);
+}
+
+window.toggleSidebar=function(){
+  document.getElementById('rooms-sidebar').classList.toggle('open');
+};
+
+// ── REACCIONES ─────────────────────────────────────────────
+function showPicker(id,el){
+  pickerMsgId=id;
+  const p=document.getElementById('react-picker');
+  const r=el.getBoundingClientRect();
+  p.style.top=Math.max(10,r.top-58)+'px';
+  p.style.left=Math.max(8,Math.min(r.left,innerWidth-320))+'px';
+  p.classList.remove('hidden');
+  if(navigator.vibrate)navigator.vibrate(30);
+}
+document.getElementById('react-picker').addEventListener('click',e=>{
+  const b=e.target.closest('.rpick');
+  if(b&&pickerMsgId){addReact(pickerMsgId,b.dataset.e);document.getElementById('react-picker').classList.add('hidden');pickerMsgId=null;}
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.react-picker')&&!e.target.closest('.msg-bubble')){
+    document.getElementById('react-picker').classList.add('hidden');pickerMsgId=null;
+  }
+});
+function addReact(msgId,emoji){
+  const room=rooms.get(currentRoomId);if(!room)return;
+  if(!room.reactions[msgId])room.reactions[msgId]={};
+  room.reactions[msgId][myName]=emoji;
+  updateReactionsUI(room,msgId);
+  const msg={type:'reaction',id:uid(),roomId:currentRoomId,senderId:pubKeyHex,ts:Date.now(),hops:0,payload:{msgId,emoji,name:myName}};
+  broadcastP2P(currentRoomId,msg);
+  try{playPuduReaction();spawnStars(innerWidth/2,innerHeight/2);}catch{}
+}
+
+// ── ENVIAR MENSAJE ─────────────────────────────────────────
+window.sendMessage=function(){
+  const inp=document.getElementById('chat-input');
+  let txt=inp.value.trim();if(!txt)return;
+  txt=filtrarGarabatos(txt);
+  const msgId=uid();
+  const room=rooms.get(currentRoomId);if(!room)return;
+  const msg={type:'chat',id:msgId,roomId:currentRoomId,senderId:pubKeyHex,ts:Date.now(),hops:0,payload:{text:txt,name:myName}};
+  room.seenMsgIds.add(msgId);
+  const sent=broadcastP2P(currentRoomId,msg);
+  addMsgToVS(currentRoomId,msgId,myName,txt,true,Date.now());
+  try{add3DText(txt,true);spawnStars(innerWidth-80,innerHeight-80);spawnRipple(innerWidth-80,innerHeight-80);playSendSound();}catch{}
+  if(sent===0)addSystemMsgVS(currentRoomId,'⚠️ Sin peers P2P. Intenta nuevamente.');
+  inp.value='';inp.style.height='auto';
+};
+
+// ── TYPING ─────────────────────────────────────────────────
+let myTypingTO=null,myTypingSent=false;
+function setupInput(){
+  const inp=document.getElementById('chat-input');
+  if(inp.dataset.ready==='1')return;
+  inp.dataset.ready='1';inp.disabled=false;
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();window.sendMessage();}});
+  inp.addEventListener('input',()=>{
+    inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,90)+'px';
+    if(!myTypingSent&&currentRoomId){
+      myTypingSent=true;
+      broadcastP2P(currentRoomId,{type:'typing',id:uid(),roomId:currentRoomId,senderId:pubKeyHex,name:myName,ts:Date.now()});
+    }
+    clearTimeout(myTypingTO);myTypingTO=setTimeout(()=>{myTypingSent=false;},2500);
+  });
+}
+
+// ── DESCUBRIMIENTO DE SALAS
+let discoveryDone = false;
+let discoveryTimer = null;
+
+function finishDiscoveryAndEnter(){
+  if(discoveryDone)return;
+  discoveryDone=true;
+  clearTimeout(discoveryTimer);
+  const best = findBestRoom();
+  if(best){
+    currentRoomId = best;
+    rooms.get(best).users.add(pubKeyHex);
+  } else {
+    const newId = createRoom();
+    rooms.get(newId).users.add(pubKeyHex);
+    currentRoomId = newId;
+  }
+  signAndPublish({type:'hello',roomId:currentRoomId,roomName:rooms.get(currentRoomId).roomName,from:pubKeyHex,name:myName,ts:Date.now()});
+  enterChatScreen();
+}
+
+// ── ENTRAR
+window.enterChat=async function(){
+  const btn=document.getElementById('enter-btn');
+  btn.disabled=true;btn.textContent='🌿 Conectando...';
+  show('connecting-screen');
+  initSensors();
+  try{await generateKeypair();}catch(e){
+    document.getElementById('connecting-text').textContent='Error: '+e.message;return;
+  }
+  if(!myName) myName=randomName();
+  persistName(myName);
+  document.getElementById('connecting-text').textContent='Conectando a relays Nostr...';
+  RELAY_URLS.forEach(url=>connectNostrRelay(url));
+  if(relayReadyCalled && !discoveryDone){
+    document.getElementById('connecting-text').textContent='Buscando salas del bosque...';
+    clearTimeout(discoveryTimer);
+    discoveryTimer=setTimeout(finishDiscoveryAndEnter, 2500);
+  }
+  setInterval(()=>{
+    if(myName&&currentRoomId){
+      const room=rooms.get(currentRoomId);
+      setTimeout(()=>signAndPublish({type:'hello',roomId:currentRoomId,roomName:room?.roomName,from:pubKeyHex,name:myName,ts:Date.now()}),Math.random()*3000);
+    }
+  },HELLO_INTERVAL);
+  setTimeout(()=>{if(!chatEntered&&!discoveryDone)finishDiscoveryAndEnter();},8000);
+};
+
+function enterChatScreen(){
+  if(chatEntered)return;chatEntered=true;
+  show('chat-screen');
+  document.getElementById('h-avatar').textContent=avatarFor(myName);
+  updateChatHeader();
+  try{triggerEntryAnimation();}catch{}
+  setupInput();
+  addSystemMsgVS(currentRoomId,`🌿 Entraste al bosque como ${myName} 🦌`);
+  addSystemMsgVS(currentRoomId,`🏡 Tu sala: "${rooms.get(currentRoomId)?.roomName}" — esperando más pudúes...`);
+  addSystemMsgVS(currentRoomId,'⚡ Chat mesh P2P listo. Puedes cambiar de sala desde el panel izquierdo 🌿');
+  updateStatus();updateMeshIndicator();renderRoomSidebar();
+  // Programar apariciones cinematográficas del pudú
+  try{schedulePuduEntry();}catch{}
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  const previewName=randomName();
+  document.getElementById('assigned-name-display').textContent=`Tu nombre: ${previewName} ${avatarFor(previewName)}`;
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  PUDÚ 3D CINEMATOGRÁFICO — apariciones sorpresa
+// ══════════════════════════════════════════════════════════════
+const PUDU_GLB_URL = 'https://chatp2p-bice.vercel.app/objetos3d/pudu.glb';
+let pudu3dScene=null, pudu3dRenderer=null, pudu3dCamera=null;
+let pudu3dMixer=null, pudu3dModel=null, pudu3dClock=null;
+let pudu3dRunning=false, pudu3dLoaded=false, pudu3dLoading=false;
+let pudu3dAnimFrame=null;
+
+// Detectar capacidad del dispositivo
+const DEVICE_PERF = (()=>{
+  const gpu = (navigator.userAgent.match(/iPhone|iPad/)?'mobile':
+    (navigator.hardwareConcurrency||4)>=4?'high':'low');
+  return gpu;
+})();
+
+// Frases que aparecen con el pudú — power metal style
+const PUDU_CAPTIONS = [
+  '🦌 GUARDIAN DEL BOSQUE','⚔ PUDÚ DIMENSIONAL',
+  '🦌 EL PEQUEÑO TITAN','⚡ ESPIRITU DEL MAQUI',
+  '🦌 PUDÚ SALVAJE','🌿 GUARDIAN NATIVO',
+  '⚔ EL PUDÚ ETERNO','🦌 FUERZA DEL BOSQUE',
+  '⚡ PUDÚ LEGENDARIO','🌿 SEÑOR DEL QUILLAY',
+  '🦌 PUDÚ DE ACERO','⚔ GUARDIAN INMORTAL',
+];
+
+// Variaciones de animación (cómo entra el pudú)
+const PUDU_ACTS = [
+  'correr_derecha','correr_izquierda','saltar_centro',
+  'aparecer_fondo','girar_loco','zoom_in',
+  'correr_cruzar','caer_cielo',
+];
+
+async function loadGLTFLoader(){
+  if(window.__GLTFLoader) return window.__GLTFLoader;
+  // Cargar GLTFLoader desde CDN compatible con three r128
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
+    s.onload=()=>resolve(window.THREE?.GLTFLoader||null);
+    s.onerror=reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function initPudu3D(){
+  if(pudu3dLoaded||pudu3dLoading)return;
+  pudu3dLoading=true;
+
+  const overlay=document.getElementById('pudu3d-overlay');
+  const canvas=document.getElementById('pudu3d-canvas');
+  if(!overlay||!canvas){pudu3dLoading=false;return;}
+
+  try{
+    const GLTFLoader = await loadGLTFLoader();
+    if(!GLTFLoader){pudu3dLoading=false;return;}
+
+    // Renderer adaptado al dispositivo
+    pudu3dRenderer=new THREE.WebGLRenderer({canvas,antialias:DEVICE_PERF==='high',alpha:true});
+    pudu3dRenderer.setClearColor(0x000000,0);
+    pudu3dRenderer.setPixelRatio(Math.min(devicePixelRatio, DEVICE_PERF==='high'?2:1));
+    pudu3dRenderer.shadowMap.enabled = DEVICE_PERF==='high';
+    pudu3dRenderer.setSize(innerWidth,innerHeight);
+
+    pudu3dScene=new THREE.Scene();
+    pudu3dCamera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,500);
+    pudu3dCamera.position.set(0,1.8,7);
+    pudu3dCamera.lookAt(0,1,0);
+
+    // Iluminación cinemática
+    const amb=new THREE.AmbientLight(0x88aaff,1.2); pudu3dScene.add(amb);
+    const dir=new THREE.DirectionalLight(0xffffff,2.5);
+    dir.position.set(5,10,5);
+    if(DEVICE_PERF==='high'){ dir.castShadow=true; }
+    pudu3dScene.add(dir);
+    const rim=new THREE.PointLight(0xff6eb4,3,20); rim.position.set(-4,4,2); pudu3dScene.add(rim);
+    const fill=new THREE.PointLight(0x6688ff,1.5,15); fill.position.set(3,2,-3); pudu3dScene.add(fill);
+
+    pudu3dClock=new THREE.Clock();
+
+    // Cargar el GLB
+    const loader=new GLTFLoader();
+    loader.load(PUDU_GLB_URL,(gltf)=>{
+      pudu3dModel=gltf.scene;
+      pudu3dModel.traverse(c=>{
+        if(c.isMesh){
+          c.castShadow=true;
+          c.receiveShadow=false;
+          // Mejorar materiales
+          if(c.material){
+            c.material.envMapIntensity=1.5;
+          }
+        }
+      });
+      // Escalar y centrar
+      const box=new THREE.Box3().setFromObject(pudu3dModel);
+      const sz=box.getSize(new THREE.Vector3());
+      const sc=2.2/Math.max(sz.x,sz.y,sz.z);
+      pudu3dModel.scale.setScalar(sc);
+      const center=box.getCenter(new THREE.Vector3());
+      pudu3dModel.position.sub(center.multiplyScalar(sc));
+      pudu3dModel.position.y=-0.2;
+
+      pudu3dScene.add(pudu3dModel);
+
+      // Animaciones si existen
+      if(gltf.animations?.length){
+        pudu3dMixer=new THREE.AnimationMixer(pudu3dModel);
+        const clip=gltf.animations[0];
+        const action=pudu3dMixer.clipAction(clip);
+        action.play();
+      }
+
+      pudu3dLoaded=true;
+      pudu3dLoading=false;
+    },undefined,(err)=>{
+      console.warn('GLB load error:',err);
+      pudu3dLoading=false;
+    });
+
+    window.addEventListener('resize',()=>{
+      if(!pudu3dRenderer)return;
+      pudu3dRenderer.setSize(innerWidth,innerHeight);
+      pudu3dCamera.aspect=innerWidth/innerHeight;
+      pudu3dCamera.updateProjectionMatrix();
+    });
+
+  }catch(e){
+    pudu3dLoading=false;
+    console.warn('Pudú 3D init error:',e);
+  }
+}
+
+function runPudu3DLoop(){
+  if(!pudu3dRunning)return;
+  pudu3dAnimFrame=requestAnimationFrame(runPudu3DLoop);
+  const delta=pudu3dClock.getDelta();
+  if(pudu3dMixer)pudu3dMixer.update(delta);
+  if(pudu3dRenderer&&pudu3dScene&&pudu3dCamera)
+    pudu3dRenderer.render(pudu3dScene,pudu3dCamera);
+}
+
+// ── SHOW PUDÚ — la magia cinematográfica ──────────────────
+let puduBusy=false;
+async function showPuduCinematic(){
+  if(puduBusy||!chatEntered)return;
+  if(!pudu3dLoaded){
+    await initPudu3D();
+    // Esperar carga real (max 4s)
+    let tries=0;
+    while(!pudu3dLoaded&&tries<40){await new Promise(r=>setTimeout(r,100));tries++;}
+    if(!pudu3dLoaded)return;
+  }
+  puduBusy=true;
+
+  const overlay=document.getElementById('pudu3d-overlay');
+  const caption=document.getElementById('pudu3d-caption');
+  const vignette=document.getElementById('pudu3d-vignette');
+  if(!overlay||!pudu3dModel)return;
+
+  // Elegir variación aleatoria
+  const act=PUDU_ACTS[Math.floor(Math.random()*PUDU_ACTS.length)];
+  const cap=PUDU_CAPTIONS[Math.floor(Math.random()*PUDU_CAPTIONS.length)];
+
+  // Resetear modelo
+  pudu3dModel.rotation.set(0,0,0);
+  pudu3dModel.scale.setScalar(pudu3dModel.scale.x); // mantener escala calculada
+  pudu3dModel.position.y=-0.2;
+
+  // Mostrar overlay
+  overlay.style.display='block';
+  pudu3dRunning=true;
+  runPudu3DLoop();
+
+  // Configurar posición inicial y animación según act
+  const baseScale=pudu3dModel.scale.x;
+  let timeline;
+
+  switch(act){
+    case 'correr_derecha':
+      pudu3dCamera.position.set(0,1.8,7);
+      pudu3dCamera.lookAt(0,1,0);
+      pudu3dModel.position.x=12;
+      pudu3dModel.rotation.y=Math.PI; // mirando izquierda
+      timeline=animarCorrer(pudu3dModel,12,-13,2800,'x');
+      break;
+    case 'correr_izquierda':
+      pudu3dCamera.position.set(0,1.8,7);
+      pudu3dCamera.lookAt(0,1,0);
+      pudu3dModel.position.x=-12;
+      pudu3dModel.rotation.y=0;
+      timeline=animarCorrer(pudu3dModel,-12,13,2800,'x');
+      break;
+    case 'saltar_centro':
+      pudu3dCamera.position.set(0,2,8);
+      pudu3dCamera.lookAt(0,1,0);
+      pudu3dModel.position.set(0,-3,0);
+      pudu3dModel.rotation.y=Math.PI*0.1;
+      timeline=animarSaltar(pudu3dModel);
+      break;
+    case 'aparecer_fondo':
+      pudu3dCamera.position.set(0,2,6);
+      pudu3dCamera.lookAt(0,1,0);
+      pudu3dModel.position.z=-20;
+      pudu3dModel.rotation.y=Math.PI;
+      timeline=animarDesdeLejos(pudu3dModel);
+      break;
+    case 'girar_loco':
+      pudu3dCamera.position.set(0,2.5,5);
+      pudu3dCamera.lookAt(0,1,0);
+      timeline=animarGirar(pudu3dModel);
+      break;
+    case 'zoom_in':
+      pudu3dCamera.position.set(0,1.5,20);
+      pudu3dCamera.lookAt(0,1,0);
+      pudu3dModel.position.set(0,-0.2,0);
+      timeline=animarZoom(pudu3dCamera);
+      break;
+    case 'correr_cruzar':
+      pudu3dCamera.position.set(0,1.2,9);
+      pudu3dCamera.lookAt(0,0.8,0);
+      pudu3dModel.position.set(-14,-0.2,0);
+      pudu3dModel.rotation.y=0;
+      timeline=animarCruzar(pudu3dModel);
+      break;
+    case 'caer_cielo':
+      pudu3dCamera.position.set(0,2,7);
+      pudu3dCamera.lookAt(0,1,0);
+      pudu3dModel.position.set((Math.random()-.5)*4,12,0);
+      pudu3dModel.rotation.z=Math.PI*0.15;
+      timeline=animarCaer(pudu3dModel);
+      break;
+    default:
+      pudu3dCamera.position.set(0,1.8,7);
+      pudu3dModel.position.x=10;
+      timeline=animarCorrer(pudu3dModel,10,-11,2600,'x');
+  }
+
+  // Mostrar caption con delay
+  setTimeout(()=>{
+    caption.textContent=cap;
+    animarOpacity(caption,0,1,400);
+    animarOpacity(vignette,0,0.85,600);
+  },300);
+
+  // Esperar que termine la animación
+  await timeline;
+
+  // Fade out
+  await Promise.all([
+    animarOpacity(caption,1,0,400),
+    animarOpacity(vignette,0.85,0,500),
+  ]);
+
+  // Ocultar overlay
+  pudu3dRunning=false;
+  cancelAnimationFrame(pudu3dAnimFrame);
+  overlay.style.display='none';
+  caption.textContent='';
+
+  puduBusy=false;
+  schedulePudu(); // programar siguiente aparición
+}
+
+// ── ANIMACIONES HELPER ────────────────────────────────────
+function lerp(a,b,t){return a+(b-a)*t;}
+function easeInOut(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function easeIn(t){return t*t*t;}
+function animarOpacity(el,from,to,dur){
+  return new Promise(r=>{
+    const start=performance.now();
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      el.style.opacity=lerp(from,to,easeInOut(p));
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarCorrer(model,fromX,toX,dur){
+  return new Promise(r=>{
+    const start=performance.now();
+    const ys=[0,0.15,0,0.18,0,0.12,0]; // bounce mientras corre
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      model.position.x=lerp(fromX,toX,easeInOut(p));
+      // bounce
+      const phase=p*6;
+      const bi=Math.floor(phase)%ys.length;
+      model.position.y=-0.2+ys[bi]*Math.sin(phase*Math.PI)*0.8;
+      // pequeño balanceo
+      model.rotation.z=Math.sin(p*Math.PI*12)*0.06;
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarSaltar(model){
+  return new Promise(r=>{
+    const dur=2200;const start=performance.now();
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      // Arco parabólico
+      const arc=Math.sin(p*Math.PI);
+      model.position.y=-0.2+arc*4.5;
+      model.position.x=Math.sin(p*Math.PI*2)*1.5;
+      model.rotation.z=arc*0.4;
+      model.rotation.y=p*Math.PI*2;
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarDesdeLejos(model){
+  return new Promise(r=>{
+    const dur=2600;const start=performance.now();
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      const pe=easeOut(p);
+      model.position.z=lerp(-20,1.5,pe);
+      model.rotation.y=lerp(Math.PI,Math.PI*2,pe);
+      const sc=lerp(0.3,pudu3dModel.scale.x,easeOut(Math.min(p*1.5,1)));
+      model.scale.setScalar(sc);
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarGirar(model){
+  return new Promise(r=>{
+    const dur=2400;const start=performance.now();
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      model.rotation.y=p*Math.PI*6;
+      model.position.y=-0.2+Math.sin(p*Math.PI)*1.5;
+      const sc=pudu3dModel.scale.x*(1+Math.sin(p*Math.PI)*0.4);
+      model.scale.setScalar(sc);
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarZoom(camera){
+  return new Promise(r=>{
+    const dur=2800;const start=performance.now();
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      const pe=easeOut(p);
+      // Zoom in dramático, luego pull back
+      let z;
+      if(p<0.6){ z=lerp(20,3,easeOut(p/0.6)); }
+      else { z=lerp(3,9,easeIn((p-0.6)/0.4)); }
+      camera.position.z=z;
+      camera.lookAt(0,1,0);
+      // shake leve al llegar
+      if(p>0.55&&p<0.65){
+        camera.position.x=Math.sin(p*80)*0.05;
+      }
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarCruzar(model){
+  return new Promise(r=>{
+    const dur=2200;const start=performance.now();
+    const baseSc=model.scale.x;
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      model.position.x=lerp(-14,14,easeInOut(p));
+      // Doppler de escala: más grande al pasar por el centro
+      const zoom=1+Math.exp(-Math.pow((p-0.5)*5,2))*0.6;
+      model.scale.setScalar(baseSc*zoom);
+      model.position.y=-0.2+Math.abs(Math.sin(p*Math.PI*8))*0.2;
+      model.rotation.z=Math.sin(p*Math.PI*8)*0.08;
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animarCaer(model){
+  return new Promise(r=>{
+    const dur=2000;const start=performance.now();
+    const initY=model.position.y;
+    function step(now){
+      const p=Math.min((now-start)/dur,1);
+      if(p<0.7){
+        // Caída con aceleración
+        const fp=p/0.7;
+        model.position.y=lerp(initY,-0.2,easeIn(fp));
+        model.rotation.z=Math.sin(fp*Math.PI*3)*0.2;
+        model.rotation.x=fp*0.3;
+      } else {
+        // Rebote
+        const bp=(p-0.7)/0.3;
+        model.position.y=-0.2+Math.sin(bp*Math.PI)*0.8*(1-bp);
+        model.rotation.z*=0.9;
+      }
+      if(p<1)requestAnimationFrame(step);else r();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+// ── SCHEDULER ────────────────────────────────────────────
+let puduSchedulerTO=null;
+function schedulePudu(){
+  clearTimeout(puduSchedulerTO);
+  // Entre 60s y 120s después de la última aparición
+  const delay=(60+Math.random()*60)*1000;
+  puduSchedulerTO=setTimeout(()=>showPuduCinematic(),delay);
+}
+function schedulePuduEntry(){
+  // Primera aparición: entre 2 y 10 segundos tras entrar al chat
+  const delay=(2+Math.random()*8)*1000;
+  setTimeout(()=>{
+    // Pre-cargar silenciosamente
+    initPudu3D();
+    // Mostrar cuando esté listo
+    setTimeout(()=>showPuduCinematic(),(delay/2));
+  }, delay/2);
+}
+
+window.addEventListener('beforeunload',()=>{
+  if(myName&&currentRoomId){
+    const peers=getRoomPeers(currentRoomId);
+    if(peers)for(const[pub]of peers)sendToPeer(currentRoomId,pub,{type:'leave',id:uid(),roomId:currentRoomId,senderId:pubKeyHex,name:myName,ts:Date.now()});
+    signAndPublish({type:'bye',roomId:currentRoomId,from:pubKeyHex,name:myName,ts:Date.now()});
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  THREE.JS + VISUAL FX
+// ══════════════════════════════════════════════════════════════
+let tiltX=0,tiltY=0,tiltTargetX=0,tiltTargetY=0;
+let calibratedBeta=null,calibratedGamma=null;
+let hasSensor=false,sensorsInit=false;
+function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+function handleOrientation(e){
+  if(e.beta==null||e.gamma==null)return;hasSensor=true;
+  if(calibratedBeta===null){calibratedBeta=e.beta;calibratedGamma=e.gamma;}
+  calibratedBeta+=(e.beta-calibratedBeta)*0.01;calibratedGamma+=(e.gamma-calibratedGamma)*0.01;
+  let dx=e.gamma-calibratedGamma,dy=e.beta-calibratedBeta;
+  if(dx>180)dx-=360;else if(dx<-180)dx+=360;if(dy>180)dy-=360;else if(dy<-180)dy+=360;
+  tiltTargetX=clamp(dx/5,-8,8);tiltTargetY=clamp(dy/5,-8,8);
+}
+function handleMotion(e){
+  const acc=e.accelerationIncludingGravity;if(!acc)return;hasSensor=true;
+  tiltTargetX=clamp((acc.x||0)*1.2,-8,8);tiltTargetY=clamp((acc.y||0)*1.2,-8,8);
+}
+async function initSensors(){
+  if(sensorsInit)return;sensorsInit=true;
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'){
+      if(typeof DeviceOrientationEvent.requestPermission==='function'){
+        try{const p=await DeviceOrientationEvent.requestPermission();if(p==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}catch{}
+      }else window.addEventListener('deviceorientation',handleOrientation,true);
+    }
+    if(typeof DeviceMotionEvent!=='undefined'){
+      if(typeof DeviceMotionEvent.requestPermission==='function'){
+        try{const p=await DeviceMotionEvent.requestPermission();if(p==='granted')window.addEventListener('devicemotion',handleMotion,true);}catch{}
+      }else window.addEventListener('devicemotion',handleMotion,true);
+    }
+  }catch{}
+}
+window.addEventListener('mousemove',e=>{if(hasSensor)return;tiltTargetX=((e.clientX/innerWidth)-.5)*5;tiltTargetY=((e.clientY/innerHeight)-.5)*5;});
+window.addEventListener('touchmove',e=>{if(hasSensor||!e.touches.length)return;tiltTargetX=((e.touches[0].clientX/innerWidth)-.5)*5;tiltTargetY=((e.touches[0].clientY/innerHeight)-.5)*5;},{passive:true});
+
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('three-canvas'),antialias:false,alpha:true});
+renderer.setClearColor(0x000000,0);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,600);
+cam.position.set(0,4.8,18);cam.lookAt(0,4.5,0);
+// Steel grid - power metal aesthetic
+const gridH=new THREE.GridHelper(80,35,0x0d2a3a,0x060e16);gridH.position.y=-6;scene.add(gridH);
+const gridH2=new THREE.GridHelper(80,35,0x1a3020,0x080f0a);gridH2.position.y=-6.1;scene.add(gridH2);
+const SPRING=0.006,DAMP=0.88,TILT_F=0.5;
+const shapes=[];
+const geometries=[new THREE.SphereGeometry(.22,7,7),new THREE.OctahedronGeometry(.28),new THREE.TetrahedronGeometry(.24)];
+// Power metal colors: ice blues, golds, silvers, deep crimsons
+const colors=['#3a7a9c','#7eb8d4','#c8a030','#b0bcc8','#1a4a6a','#4a7a50','#8a6a20','#2a5a7a','#e8c860'];
+for(let i=0;i<70;i++){
+  const g=geometries[i%geometries.length];
+  const m=new THREE.MeshBasicMaterial({color:new THREE.Color(colors[i%colors.length]),transparent:true,opacity:.6,wireframe:i%4===0});
+  const mesh=new THREE.Mesh(g,m);
+  const ox=(Math.random()-.5)*44,oy=(Math.random()-.5)*26,oz=(Math.random()-.5)*28;
+  mesh.position.set(ox,oy,oz);
+  mesh.userData={ox,oy,oz,pvx:0,pvy:0,pvz:0,phase:Math.random()*Math.PI*2,baseScale:.7+Math.random()*.7,
+    rotSpeedX:(Math.random()-.5)*.04,rotSpeedY:(Math.random()-.5)*.04,rotSpeedZ:(Math.random()-.5)*.02};
+  scene.add(mesh);shapes.push(mesh);
+}
+// Majestic wireframe forms - ice blue tones
+const knot=new THREE.Mesh(new THREE.TorusKnotGeometry(3.5,.5,100,14,2,3),new THREE.MeshBasicMaterial({color:0x0d2a3a,wireframe:true,transparent:true,opacity:.3}));
+knot.position.set(0,1,0);scene.add(knot);
+const knot2=new THREE.Mesh(new THREE.TorusKnotGeometry(2.5,.3,80,10,3,5),new THREE.MeshBasicMaterial({color:0x1a3a2a,wireframe:true,transparent:true,opacity:.22}));
+knot2.position.set(0,1,0);scene.add(knot2);
+const torus=new THREE.Mesh(new THREE.TorusGeometry(6,.7,8,46),new THREE.MeshBasicMaterial({color:0x0a1e2e,wireframe:true,transparent:true,opacity:.2}));
+torus.rotation.x=Math.PI/3;scene.add(torus);
+const torus2=new THREE.Mesh(new THREE.TorusGeometry(4,.4,6,36),new THREE.MeshBasicMaterial({color:0x1a2a0a,wireframe:true,transparent:true,opacity:.18}));
+torus2.rotation.x=-Math.PI/4;torus2.rotation.z=Math.PI/6;scene.add(torus2);
+const ico=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,1),new THREE.MeshBasicMaterial({color:0x0d3a5a,wireframe:true,transparent:true,opacity:.32}));
+ico.position.set(-8,2,-2);scene.add(ico);
+const oct=new THREE.Mesh(new THREE.OctahedronGeometry(1.8,1),new THREE.MeshBasicMaterial({color:0x2a3a1a,wireframe:true,transparent:true,opacity:.32}));
+oct.position.set(8,2,-2);scene.add(oct);
+const rings=[];
+for(let i=0;i<5;i++){
+  const r=new THREE.Mesh(new THREE.TorusGeometry(1,.05,4,40),new THREE.MeshBasicMaterial({color:new THREE.Color(colors[i]),transparent:true,opacity:0}));
+  r.userData={phase:i*Math.PI*2/5,speed:.8+Math.random()*.4};
+  r.position.set((Math.random()-.5)*20,(Math.random()-.5)*12,0);
+  scene.add(r);rings.push(r);
+}
+// Gold stars — like stratovarius album art
+const stars3d=[];
+const starGeo=new THREE.OctahedronGeometry(.14,0);
+for(let i=0;i<30;i++){
+  const starColor=i%3===0?0xc8a030:(i%3===1?0x7eb8d4:0xb0bcc8);
+  const m2=new THREE.MeshBasicMaterial({color:starColor,transparent:true,opacity:.8});
+  const s=new THREE.Mesh(starGeo,m2);
+  s.position.set((Math.random()-.5)*38,(Math.random()-.5)*22,(Math.random()-.5)*20);
+  s.userData={oy:s.position.y,phase:Math.random()*Math.PI*2,pvx:0,pvy:0,pvz:0,ox:s.position.x,oz:s.position.z};
+  scene.add(s);stars3d.push(s);
+}
+const burst=[];
+function triggerEntryAnimation(){
+  cam.position.z=80;
+  const fl=document.getElementById('flash-overlay');
+  fl.style.background='rgba(126,184,212,0.25)';
+  setTimeout(()=>{fl.style.background='rgba(126,184,212,0)';},200);
+  for(let i=0;i<80;i++){
+    const g=geometries[i%geometries.length];
+    const c2=colors[i%colors.length];
+    const m3=new THREE.MeshBasicMaterial({color:new THREE.Color(c2),transparent:true,opacity:1});
+    const mesh=new THREE.Mesh(g.clone(),m3);
+    mesh.position.set((Math.random()-.5)*2,(Math.random()-.5)*2,0);
+    const phi=Math.random()*Math.PI*2,theta=(Math.random()-.5)*Math.PI,spd=Math.random()*.55+.18;
+    mesh.userData={vel:new THREE.Vector3(Math.cos(phi)*Math.cos(theta)*spd,Math.sin(theta)*spd,Math.sin(phi)*Math.cos(theta)*spd*.3),
+      life:1,pvx:0,pvy:0,pvz:0,ox:0,oy:0,oz:0,phase:Math.random()*Math.PI*2,baseScale:1,
+      rotSpeedX:Math.random()*.15,rotSpeedY:Math.random()*.15,rotSpeedZ:Math.random()*.1};
+    scene.add(mesh);burst.push({mesh,active:true});
+  }
+  playEntrySound();
+}
+function resize3(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
+resize3();window.addEventListener('resize',resize3);
+
+let t3=0;
+const camBasePos=new THREE.Vector3(0,1.2,20);
+const camCurrent=new THREE.Vector3(0,1.2,20);
+let lastParallaxFrame=0;
+function updateUIParallax(ts){
+  requestAnimationFrame(updateUIParallax);
+  if(ts-lastParallaxFrame<33)return;
+  lastParallaxFrame=ts;
+  const header=document.querySelector('.chat-header');
+  if(header)header.style.transform=`translateX(${tiltX*15}px)`;
+  if(document.activeElement!==document.getElementById('chat-input')){
+    const msgs=document.getElementById('chat-messages');
+    if(msgs)msgs.style.transform=`translateX(${tiltX*12}px) translateY(${tiltY*10}px)`;
+  }
+}
+requestAnimationFrame(updateUIParallax);
+
+function animate3(ts){
+  requestAnimationFrame(animate3);t3+=.012;
+  tiltX+=(tiltTargetX-tiltX)*0.15;tiltY+=(tiltTargetY-tiltY)*0.15;
+  camCurrent.x+=(camBasePos.x+tiltX*15-camCurrent.x)*0.08;
+  camCurrent.y+=(camBasePos.y-tiltY*12-camCurrent.y)*0.08;
+  camCurrent.z+=(camBasePos.z-camCurrent.z)*0.04;
+  cam.position.copy(camCurrent);cam.lookAt(tiltX*3,4.5-tiltY*1.2,0);
+  shapes.forEach(s=>{
+    const d=s.userData;
+    d.pvx+=(d.ox-s.position.x)*SPRING;d.pvy+=(d.oy-s.position.y)*SPRING;d.pvz+=(d.oz-s.position.z)*SPRING;
+    d.pvx+=tiltX*TILT_F;d.pvy-=tiltY*TILT_F*0.5;
+    d.pvx*=DAMP;d.pvy*=DAMP;d.pvz*=DAMP;
+    s.position.x+=d.pvx;s.position.y+=d.pvy;s.position.z+=d.pvz;
+    s.rotation.x+=d.rotSpeedX+tiltY*0.02;s.rotation.y+=d.rotSpeedY+tiltX*0.02;s.rotation.z+=d.rotSpeedZ;
+    const sc=d.baseScale*(0.82+0.22*Math.sin(t3*2.2+d.phase));
+    s.scale.setScalar(sc);s.material.opacity=0.38+0.38*Math.sin(t3*1.5+d.phase);
+  });
+  stars3d.forEach(s=>{
+    const d=s.userData;
+    d.pvx+=(d.ox-s.position.x)*SPRING;d.pvy+=(d.oy-s.position.y)*SPRING*1.3;d.pvz+=(d.oz-s.position.z)*SPRING;
+    d.pvx+=tiltX*TILT_F*0.8;d.pvy-=tiltY*TILT_F*0.6;
+    d.pvx*=DAMP;d.pvy*=DAMP;d.pvz*=DAMP;
+    s.position.x+=d.pvx;s.position.y+=d.pvy;s.position.z+=d.pvz;
+    s.rotation.y+=.06;s.rotation.z+=.04;
+    s.material.opacity=0.5+0.5*Math.abs(Math.sin(t3*3+d.phase));
+  });
+  knot.rotation.x=t3*.05+tiltY*.08;knot.rotation.y=t3*.09+tiltX*.08;knot.rotation.z=t3*.03;
+  knot2.rotation.x=-t3*.07+tiltY*.06;knot2.rotation.y=-t3*.06-tiltX*.06;
+  torus.rotation.z=t3*.07;torus.rotation.y=t3*.04+tiltX*.05;
+  torus2.rotation.z=-t3*.06;torus2.rotation.x=t3*.05-tiltY*.04;
+  ico.rotation.y=t3*.12+tiltX*.07;ico.rotation.x=t3*.08+tiltY*.06;
+  oct.rotation.y=-t3*.1-tiltX*.07;oct.rotation.z=t3*.07;
+  rings.forEach(r=>{
+    const ph=r.userData.phase+t3*r.userData.speed;
+    const sc=1.5+2.5*Math.abs(Math.sin(ph));
+    r.scale.setScalar(sc);r.material.opacity=0.4*Math.abs(Math.sin(ph));
+    r.rotation.x+=.02;r.rotation.z+=.015;
+  });
+  gridH.position.z=(t3*.45)%2;gridH.position.x=tiltX*2;
+  for(let i=burst.length-1;i>=0;i--){
+    const b=burst[i];if(!b.active)continue;
+    const d=b.mesh.userData;
+    b.mesh.position.add(d.vel);d.vel.multiplyScalar(0.93);
+    b.mesh.rotation.x+=d.rotSpeedX;b.mesh.rotation.y+=d.rotSpeedY;
+    d.life-=0.016;b.mesh.material.opacity=Math.max(0,d.life);
+    if(d.life<=0){scene.remove(b.mesh);burst.splice(i,1);}
+  }
+  renderer.render(scene,cam);
+}
+animate3();
+
+// ── LETRAS 3D FLOTANTES CON THREE.JS + GIROSCOPIO ──────────────
+// Sistema: cada mensaje genera letras volumétricas que flotan y reaccionan al movimiento
+const c3d=document.getElementById('msg3d');
+const ctx3=c3d.getContext('2d');
+const floaters=[];
+function resize3d(){c3d.width=innerWidth;c3d.height=innerHeight;}
+resize3d();window.addEventListener('resize',resize3d);
+
+// Letras 3D usando Three.js separado con renderer overlay
+const floatScene=new THREE.Scene();
+const floatCam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,200);
+floatCam.position.set(0,0,10);
+
+const floatRenderer=new THREE.WebGLRenderer({canvas:c3d,antialias:false,alpha:true});
+floatRenderer.setClearColor(0x000000,0);
+floatRenderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+floatRenderer.setSize(innerWidth,innerHeight);
+window.addEventListener('resize',()=>{
+  floatRenderer.setSize(innerWidth,innerHeight);
+  floatCam.aspect=innerWidth/innerHeight;floatCam.updateProjectionMatrix();
+  resize3d();
+});
+
+// Pool de meshes para letras volumétricas
+const LETTER_POOL=[];
+const POOL_SIZE=40;
+const letterGeos=[
+  new THREE.BoxGeometry(.5,.65,.18),
+  new THREE.OctahedronGeometry(.22,0),
+  new THREE.TetrahedronGeometry(.22,0),
+];
+// Materiales ice blue (me) y gold (other)
+const matMe=new THREE.MeshBasicMaterial({color:0x7eb8d4,transparent:true,opacity:.85,wireframe:false});
+const matOther=new THREE.MeshBasicMaterial({color:0xc8a030,transparent:true,opacity:.85,wireframe:false});
+const matMeWire=new THREE.MeshBasicMaterial({color:0xa8d4e8,transparent:true,opacity:.5,wireframe:true});
+const matOtherWire=new THREE.MeshBasicMaterial({color:0xe8c860,transparent:true,opacity:.5,wireframe:true});
+
+// floaterMeshes: array de grupos activos
+const floaterMeshes=[];
+
+function add3DText(txt,fromMe){
+  // Crear grupo de bloques volumétricos representando las letras del mensaje
+  const displayTxt=txt.length>14?txt.slice(0,14)+'...':txt;
+  const numBlocks=Math.min(displayTxt.length,12);
+  const group=new THREE.Group();
+  const startX=fromMe?2.5:-2.5;
+  const spacing=0.55;
+
+  for(let i=0;i<numBlocks;i++){
+    const geoIdx=i%letterGeos.length;
+    const mainMesh=new THREE.Mesh(letterGeos[geoIdx],fromMe?matMe.clone():matOther.clone());
+    const wireMesh=new THREE.Mesh(letterGeos[geoIdx],fromMe?matMeWire.clone():matOtherWire.clone());
+    mainMesh.add(wireMesh);
+    const charVal=displayTxt.charCodeAt(i)%3;
+    mainMesh.position.set(
+      startX+(fromMe?-i:i)*spacing+(Math.random()-.5)*.15,
+      -2.5+(Math.random()-.5)*.4,
+      (Math.random()-.5)*.5
+    );
+    mainMesh.rotation.set(Math.random()*.4,Math.random()*.4,Math.random()*.2);
+    mainMesh.userData={
+      vx:(fromMe?-1:1)*(0.015+Math.random()*.01),
+      vy:0.022+Math.random()*.015,
+      vz:(Math.random()-.5)*.008,
+      rx:(Math.random()-.5)*.025,
+      ry:(Math.random()-.5)*.03,
+      life:1.0,
+      decay:0.008+Math.random()*.004,
+      wobblePhase:Math.random()*Math.PI*2,
+      gyroMultX:0.6+Math.random()*.4,
+      gyroMultY:0.5+Math.random()*.3,
+    };
+    group.add(mainMesh);
+  }
+  floatScene.add(group);
+  floaterMeshes.push({group,age:0});
+  // Limpiar viejos
+  if(floaterMeshes.length>6){
+    const old=floaterMeshes.shift();
+    floatScene.remove(old.group);
+  }
+}
+
+function animFloat(){
+  requestAnimationFrame(animFloat);
+  // Mover cámara del float scene suavemente con tilt del giroscopio
+  floatCam.position.x+=(tiltX*0.08-floatCam.position.x)*0.04;
+  floatCam.position.y+=(-tiltY*0.05-floatCam.position.y)*0.04;
+  floatCam.lookAt(0,0,0);
+
+  for(let fi=floaterMeshes.length-1;fi>=0;fi--){
+    const fm=floaterMeshes[fi];
+    fm.age+=0.016;
+    const children=fm.group.children;
+    let allDead=true;
+    for(let i=0;i<children.length;i++){
+      const m=children[i];
+      const d=m.userData;
+      if(d.life<=0)continue;
+      allDead=false;
+      // Movimiento con reacción al giroscopio
+      d.vy+=0.001; // gravedad suave hacia arriba al inicio
+      m.position.x+=d.vx+tiltX*d.gyroMultX*0.004;
+      m.position.y+=d.vy-tiltY*d.gyroMultY*0.003;
+      m.position.z+=d.vz+Math.sin(fm.age*1.5+i)*0.002;
+      m.rotation.x+=d.rx+tiltY*0.003;
+      m.rotation.y+=d.ry+tiltX*0.003;
+      d.wobblePhase+=0.06;
+      m.position.y+=Math.sin(d.wobblePhase)*0.004;
+      d.life-=d.decay;
+      const lifeEased=Math.max(0,d.life);
+      // Fade out del material
+      if(m.material){m.material.opacity=lifeEased*0.85;}
+      if(m.children[0]?.material){m.children[0].material.opacity=lifeEased*0.5;}
+      m.scale.setScalar(0.5+lifeEased*0.6);
+    }
+    if(allDead){
+      floatScene.remove(fm.group);
+      floaterMeshes.splice(fi,1);
+    }
+  }
+  floatRenderer.render(floatScene,floatCam);
+}
+animFloat();
+
+// ── AUDIO ────────────────────────────────────────────────────
+let audioCtx=null;
+function getACtx(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  return audioCtx;
+}
+function playPuduMeow(pitch=1.0,style='normal'){
+  try{
+    const ac=getACtx();
+    const master=ac.createGain();
+    master.gain.setValueAtTime(0,ac.currentTime);
+    master.gain.linearRampToValueAtTime(0.22,ac.currentTime+0.03);
+    master.connect(ac.destination);
+    // Sonido metálico tipo bell/metal más que meow kawaii
+    const carrier=ac.createOscillator();
+    carrier.type='triangle';
+    const base=200*pitch;
+    if(style==='normal'){
+      carrier.frequency.setValueAtTime(base,ac.currentTime);
+      carrier.frequency.linearRampToValueAtTime(base*1.5,ac.currentTime+0.12);
+      carrier.frequency.exponentialRampToValueAtTime(base*0.7,ac.currentTime+0.55);
+    } else if(style==='chirp'){
+      carrier.frequency.setValueAtTime(base*1.8,ac.currentTime);
+      carrier.frequency.exponentialRampToValueAtTime(base*0.9,ac.currentTime+0.18);
+    }
+    // Añadir armónico para sonido más metálico
+    const harm=ac.createOscillator();harm.type='sawtooth';
+    harm.frequency.value=base*2.76;
+    const harmGain=ac.createGain();harmGain.gain.setValueAtTime(0.08,ac.currentTime);
+    harmGain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.3);
+    harm.connect(harmGain);harmGain.connect(master);harm.start();harm.stop(ac.currentTime+0.35);
+    const env=ac.createGain();
+    env.gain.setValueAtTime(0,ac.currentTime);env.gain.linearRampToValueAtTime(1,ac.currentTime+0.04);
+    env.gain.setValueAtTime(0.7,ac.currentTime+0.3);env.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.7);
+    carrier.connect(env);env.connect(master);carrier.start();carrier.stop(ac.currentTime+0.75);
+    master.gain.setValueAtTime(master.gain.value,ac.currentTime+0.7);
+    master.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.8);
+  }catch{}
+}
+function playEntrySound(){
+  try{
+    const ac=getACtx();
+    // Acorde power — E5 minor power chord feel
+    [[82.4,2.2],[110,1.8],[164.8,1.4],[220,1.0],[329.6,0.7]].forEach(([f,d],i)=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='sawtooth';o.frequency.setValueAtTime(f,ac.currentTime+i*0.06);
+      g.gain.setValueAtTime(0,ac.currentTime+i*0.06);
+      g.gain.linearRampToValueAtTime(0.18,ac.currentTime+i*0.06+0.05);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+i*0.06+d);
+      o.connect(g);g.connect(ac.destination);o.start(ac.currentTime+i*0.06);o.stop(ac.currentTime+i*0.06+d+0.1);
+    });
+    setTimeout(()=>playPuduMeow(0.8,'normal'),400);
+  }catch{}
+}
+function playSendSound(){
+  try{
+    const ac=getACtx();
+    // Sonido metálico tipo "ting" de espada
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='triangle';o.frequency.setValueAtTime(880,ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1320,ac.currentTime+0.06);
+    o.frequency.exponentialRampToValueAtTime(660,ac.currentTime+0.2);
+    g.gain.setValueAtTime(0,ac.currentTime);g.gain.linearRampToValueAtTime(0.18,ac.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.3);
+    o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+0.35);
+  }catch{}
+}
+function playPuduReaction(){try{playPuduMeow(0.9+Math.random()*.3,'chirp');}catch{}}
+
+// ── FX VISUALES ─────────────────────────────────────────────
+function spawnRipple(x,y){
+  const r=document.createElement('div');r.className='ripple';
+  r.style.left=x+'px';r.style.top=y+'px';
+  document.body.appendChild(r);setTimeout(()=>r.remove(),900);
+}
+function spawnStars(x,y){
+  const emojis=['⭐','✦','✧','⚡','🔥','❄','⚔','🦌','🌿'];
+  for(let i=0;i<6;i++){
+    const s=document.createElement('div');s.className='star-particle';
+    s.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+    s.style.left=(x+(Math.random()-.5)*80)+'px';s.style.top=(y+(Math.random()-.5)*45)+'px';
+    s.style.fontSize=(10+Math.random()*12)+'px';
+    document.body.appendChild(s);setTimeout(()=>s.remove(),900);
+  }
+}
+
+// ── BOTÓN PUDÚ ──────────────────────────────────────────────
+document.getElementById('pudu-btn').addEventListener('click',e=>{
+  try{getACtx();}catch{}try{playPuduMeow(0.9+Math.random()*0.4,'normal');}catch{}
+  const x=e.clientX||innerWidth/2,y=e.clientY||innerHeight/2;
+  for(let i=0;i<3;i++)setTimeout(()=>spawnRipple(x,y),i*200);
+  spawnStars(x,y);camCurrent.x+=(Math.random()-.5)*3;camCurrent.y+=(Math.random()-.5)*2;
+});
+document.getElementById('pudu-btn').addEventListener('touchstart',e=>{
+  e.preventDefault();const t=e.touches[0];
+  try{getACtx();}catch{}try{playPuduMeow(0.9+Math.random()*0.4,'normal');}catch{}
+  for(let i=0;i<3;i++)setTimeout(()=>spawnRipple(t.clientX,t.clientY),i*200);
+  spawnStars(t.clientX,t.clientY);
+},{passive:false});
+</script>
+</body>
+</html>
