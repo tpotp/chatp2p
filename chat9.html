@@ -1220,7 +1220,7 @@ function runPudu3DLoop(){
   updateNeonPulse(pudu3dModel,pudu3dProcTime);
   // Respiración base
   if(pudu3dModel&&!puduAnimState.flying){
-    pudu3dModel.position.y=(pudu3dModel._baseY||−0.2)+Math.sin(pudu3dProcTime*1.9)*0.035;
+    pudu3dModel.position.y=(pudu3dModel._baseY||-0.2)+Math.sin(pudu3dProcTime*1.9)*0.035;
   }
   // Estela Nyan Cat cuando vuela
   if(nyanTrailActive&&pudu3dModel){
