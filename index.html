@@ -1,1089 +1,985 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka+One&family=Patrick+Hand&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<title>PudúChat</title>
+<title>P2P-LLM — Decentralized AI Chat</title>
+<meta name="description" content="Browser-based peer-to-peer LLM inference with auto-scaling model tiers. Local-first, fault-tolerant.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{width:100%;height:100%;overflow:hidden;font-family:'Patrick Hand',cursive;background:#080808}
-:root{
-  --pink:#ff6eb4;--pink2:#ff9ed5;--purple:#b16bff;--gold:#ffd700;--red:#cc1133;
-  --kawaii-grad:linear-gradient(135deg,#ff6eb4,#b16bff,#6eb4ff);
-  --bubble-me:linear-gradient(135deg,#ff6eb4 0%,#b16bff 100%);
-  --bubble-other:rgba(30,16,50,0.92);
-  --glow-pink:rgba(255,110,180,0.6);--glow-purple:rgba(177,107,255,0.5);
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-tertiary: #1a1a28;
+  --bg-glass: rgba(18, 18, 30, 0.6);
+  --text-primary: #e4e4ef;
+  --text-secondary: #8888a8;
+  --text-muted: #55556a;
+  --accent-primary: #6c5ce7;
+  --accent-secondary: #a29bfe;
+  --accent-glow: rgba(108, 92, 231, 0.35);
+  --tier-small: #00cec9;
+  --tier-medium: #fdcb6e;
+  --tier-large: #e17055;
+  --mode-local: #00b894;
+  --mode-assist: #0984e3;
+  --mode-verify: #d63031;
+  --peer-online: #00b894;
+  --peer-slow: #fdcb6e;
+  --peer-dead: #636e72;
+  --border-subtle: rgba(255,255,255,0.06);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --shadow-glow: 0 0 30px var(--accent-glow);
+  --font-sans: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-med: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-canvas{position:fixed;inset:0;z-index:0}
-#bg-overlay{position:fixed;inset:0;z-index:1;background:linear-gradient(to bottom,rgba(8,4,20,0.45) 0%,rgba(20,5,40,0.3) 40%,rgba(8,4,20,0.5) 100%)}
-#three-canvas{position:fixed;inset:0;z-index:2}
-#bg-img{
-  position:fixed;inset:0;z-index:0;
-  background:url('https://media-cldnry.s-nbcnews.com/image/upload/t_social_share_1024x768_scale,f_auto,q_auto:best/rockcms/2024-11/Pudu-Argentina-207469.jpg') center/cover no-repeat;
-  filter:blur(2px) saturate(1.7) brightness(0.72);
-  transform:scale(1.04);
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; font-family: var(--font-sans);
+  background: var(--bg-primary); color: var(--text-primary);
+  overflow: hidden; -webkit-font-smoothing: antialiased;
 }
-.screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s,transform .5s}
-.screen.hidden{opacity:0;pointer-events:none;transform:scale(.96)}
-#welcome-screen{padding:20px}
-.welcome-card{
-  background:rgba(10,4,25,.85);
-  border:2px solid var(--pink);
-  border-radius:24px;padding:28px 22px 30px;max-width:360px;width:100%;
-  backdrop-filter:blur(18px);
-  box-shadow:0 0 50px rgba(255,110,180,.35),0 0 100px rgba(177,107,255,.2),inset 0 1px 0 rgba(255,255,255,.08);
-  position:relative;overflow:hidden;
+body { display: flex; flex-direction: column; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(108,92,231,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(0,206,201,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(225,112,85,0.04) 0%, transparent 40%);
+  pointer-events: none; z-index: 0; animation: bgPulse 12s ease-in-out infinite alternate;
 }
-.welcome-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kawaii-grad)}
-.title-iron{
-  font-family:'Bangers',cursive;font-size:44px;letter-spacing:6px;
-  background:var(--kawaii-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  display:block;line-height:1;text-align:center;filter:drop-shadow(0 2px 12px rgba(255,110,180,.7));
+@keyframes bgPulse { 0% { opacity: 0.7; } 100% { opacity: 1; } }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(108,92,231,0.3); border-radius: 3px; }
+
+#status-bar {
+  position: relative; z-index: 10; display: flex; align-items: center;
+  gap: 12px; padding: 10px 16px; background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle); flex-shrink: 0;
+  overflow-x: auto; white-space: nowrap;
 }
-.title-sub{font-family:'Fredoka One',cursive;font-size:11px;letter-spacing:3px;color:rgba(255,158,213,.5);text-align:center;text-transform:uppercase;margin-top:4px}
-.pudu-zone{margin:18px auto 10px;display:flex;flex-direction:column;align-items:center}
-.pudu-wrap{position:relative;cursor:pointer;display:inline-block;transition:transform .12s}
-.pudu-wrap:active{transform:scale(.88) rotate(-5deg)}
-.pudu-img{width:140px;height:140px;filter:drop-shadow(0 0 22px rgba(255,110,180,.8)) drop-shadow(0 0 8px rgba(177,107,255,.7));animation:puduFloat 3.2s ease-in-out infinite}
-@keyframes puduFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-12px) rotate(2deg)}}
-.ring{position:absolute;inset:-14px;border-radius:50%;border:2px solid var(--pink);opacity:0;animation:ringOut 2s ease-out infinite;pointer-events:none}
-.ring:nth-child(2){animation-delay:.7s;border-color:var(--purple)}
-.ring:nth-child(3){animation-delay:1.4s}
-@keyframes ringOut{0%{opacity:.9;transform:scale(.6)}100%{opacity:0;transform:scale(1.5)}}
-.tap-hint{font-family:'Fredoka One',cursive;font-size:12px;color:var(--pink);letter-spacing:2px;text-transform:uppercase;margin-top:8px;animation:blink 1.8s infinite}
-@keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}
-.q-text{font-family:'Bangers',cursive;font-size:20px;letter-spacing:2px;color:var(--gold);text-align:center;margin:16px 0 6px;text-shadow:0 0 20px rgba(255,215,0,.6)}
-.q-sub{font-size:13px;color:rgba(255,158,213,.5);text-align:center;margin-bottom:18px}
-.enter-btn{
-  width:100%;padding:16px 10px;background:var(--bubble-me);
-  border:2px solid rgba(255,110,180,.5);border-radius:14px;
-  color:#fff;font-family:'Bangers',cursive;font-size:28px;letter-spacing:4px;
-  cursor:pointer;position:relative;overflow:hidden;transition:all .25s;
-  text-shadow:0 2px 8px rgba(0,0,0,.8);
-  box-shadow:0 4px 24px rgba(255,110,180,.4);
+.status-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px; font-size: 12px;
+  font-weight: 500; letter-spacing: 0.3px;
+  border: 1px solid var(--border-subtle); background: var(--bg-glass);
+  backdrop-filter: blur(8px); flex-shrink: 0;
+  transition: all var(--transition-med);
 }
-.enter-btn:hover{border-color:var(--pink);box-shadow:0 0 32px rgba(255,110,180,.6);transform:translateY(-2px)}
-.enter-btn:active{transform:scale(.92)}
-#assigned-name-display{font-family:'Bangers',cursive;font-size:16px;letter-spacing:2px;color:var(--gold);text-align:center;margin-top:12px;min-height:24px;text-shadow:0 0 16px rgba(255,215,0,.5)}
-.connecting-card{background:rgba(10,4,25,.9);border:2px solid var(--purple);border-radius:20px;padding:32px 24px;max-width:300px;width:90%;text-align:center;backdrop-filter:blur(20px);box-shadow:0 0 50px rgba(177,107,255,.3)}
-.connecting-title{font-family:'Bangers',cursive;font-size:28px;letter-spacing:3px;color:#fff;margin-bottom:14px;text-shadow:0 0 20px var(--pink)}
-.connecting-pudu{font-size:54px;display:block;animation:puduSpin 1.5s ease-in-out infinite}
-@keyframes puduSpin{0%,100%{transform:scale(1) rotate(-5deg)}50%{transform:scale(1.2) rotate(5deg)}}
-.dots span{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px;animation:dotBounce 1s ease-in-out infinite}
-.dots span:nth-child(1){background:var(--pink);animation-delay:0s}
-.dots span:nth-child(2){background:var(--purple);animation-delay:.18s}
-.dots span:nth-child(3){background:var(--pink2);animation-delay:.36s}
-@keyframes dotBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-12px)}}
-.relay-dots{display:flex;gap:6px;justify-content:center;margin-top:14px}
-.rdot{width:8px;height:8px;border-radius:50%;background:#334155;transition:background .3s}
-.rdot.ok{background:#22c55e}
-.rdot.fail{background:#ef4444}
-#chat-screen{justify-content:flex-start;align-items:stretch;padding:0}
-.chat-header{
-  position:relative;z-index:20;background:rgba(8,3,20,.94);
-  border-bottom:2px solid transparent;background-clip:padding-box;
-  padding:10px 14px;display:flex;align-items:center;gap:10px;
-  backdrop-filter:blur(24px);flex-shrink:0;
-  box-shadow:0 2px 20px rgba(255,110,180,.2);
-  transition:transform .15s ease-out;
+.status-chip .dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  transition: background var(--transition-med);
 }
-.chat-header::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:var(--kawaii-grad)}
-.h-avatar{
-  width:44px;height:44px;border-radius:50%;
-  border:2px solid var(--pink);display:flex;align-items:center;justify-content:center;
-  font-size:22px;flex-shrink:0;background:rgba(255,110,180,.15);
-  animation:avatarGlow 3s ease-in-out infinite;
+
+#app { position: relative; z-index: 1; display: flex; flex: 1; min-height: 0; }
+#sidebar {
+  width: 280px; background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
 }
-@keyframes avatarGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,110,180,.6)}50%{box-shadow:0 0 0 8px rgba(255,110,180,0)}}
-.h-name{font-family:'Bangers',cursive;font-size:18px;letter-spacing:2px;color:#fff;text-shadow:0 0 12px rgba(255,110,180,.8)}
-.h-status{font-size:11px;color:#4ade80;font-family:'Fredoka One',cursive}
-.h-status.offline{color:rgba(255,158,213,.4)}
-.h-logo{font-size:26px;animation:logoRock 4s ease-in-out infinite;margin-left:auto}
-@keyframes logoRock{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
-.chat-messages{flex:1;overflow-y:auto;padding:12px 14px 8px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth;transition:transform .1s ease-out}
-.chat-messages::-webkit-scrollbar{width:3px}
-.chat-messages::-webkit-scrollbar-thumb{background:rgba(255,110,180,.4);border-radius:2px}
-.msg-row{display:flex;flex-direction:column;max-width:82%;animation:bubbleIn .4s cubic-bezier(.34,1.56,.64,1) forwards}
-@keyframes bubbleIn{from{opacity:0;transform:translateY(16px) scale(.85)}to{opacity:1;transform:none}}
-.msg-row.me{align-self:flex-end;align-items:flex-end}
-.msg-row.other{align-self:flex-start;align-items:flex-start}
-.msg-sender{font-family:'Bangers',cursive;font-size:13px;letter-spacing:1.5px;margin-bottom:3px;padding:0 5px}
-.msg-row.other .msg-sender{color:var(--pink);text-shadow:0 0 10px rgba(255,110,180,.6)}
-.msg-row.me .msg-sender{color:rgba(255,158,213,.5)}
-.msg-bubble{
-  padding:11px 16px;border-radius:18px;
-  font-size:17px;line-height:1.55;word-break:break-word;
-  cursor:pointer;transition:transform .15s;position:relative;
+@media (max-width: 768px) { #sidebar { display: none; } }
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.sidebar-section { padding: 16px; border-bottom: 1px solid var(--border-subtle); }
+.sidebar-section h3 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 10px;
 }
-.msg-bubble:hover{transform:scale(1.03)}
-.msg-row.me .msg-bubble{
-  background:var(--bubble-me);color:#fff;border-bottom-right-radius:4px;
-  box-shadow:4px 5px 0 rgba(0,0,0,.5),0 4px 30px rgba(255,110,180,.3);
-  text-shadow:0 1px 4px rgba(0,0,0,.5);font-weight:bold;
+.peer-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  margin-bottom: 4px; font-size: 13px;
 }
-.msg-row.other .msg-bubble{
-  background:var(--bubble-other);color:#ffe8f5;border-bottom-left-radius:4px;
-  border:1px solid rgba(255,110,180,.2);
-  box-shadow:4px 5px 0 rgba(0,0,0,.5),0 0 20px rgba(177,107,255,.15);
-  text-shadow:0 1px 6px rgba(0,0,0,.9),0 0 20px rgba(177,107,255,.3);font-weight:bold;
+.peer-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.peer-dot.online { background: var(--peer-online); box-shadow: 0 0 6px var(--peer-online); }
+.peer-dot.slow { background: var(--peer-slow); }
+.peer-dot.dead { background: var(--peer-dead); }
+.peer-id { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.peer-rtt { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.peer-tier-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+.peer-tier-badge.tier-a { background: rgba(0,206,201,0.15); color: var(--tier-small); }
+.peer-tier-badge.tier-b { background: rgba(253,203,110,0.15); color: var(--tier-medium); }
+.peer-tier-badge.tier-c { background: rgba(225,112,85,0.15); color: var(--tier-large); }
+
+#model-progress-section { display: none; }
+#model-progress-section.active { display: block; }
+.progress-bar-track { width: 100%; height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 3px; width: 0%; transition: width var(--transition-med); }
+#model-progress-label { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+
+/* Relay status panel */
+#relay-section .relay-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 0; font-size: 11px; font-family: var(--font-mono);
+  color: var(--text-secondary); overflow: hidden;
 }
-.msg-time{font-size:11px;color:rgba(255,200,230,.35);padding:0 5px;margin-top:3px}
-.msg-reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;padding:0 3px}
-.react-badge{
-  background:rgba(255,110,180,.12);border:1px solid rgba(255,110,180,.25);
-  border-radius:12px;padding:2px 8px;font-size:15px;cursor:pointer;
-  transition:transform .15s;display:flex;align-items:center;gap:3px;
+#relay-section .relay-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--peer-dead); }
+#relay-section .relay-dot.ok { background: var(--peer-online); box-shadow: 0 0 4px var(--peer-online); }
+#relay-section .relay-dot.connecting { background: var(--peer-slow); }
+#relay-section .relay-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+.score-bar { display: flex; gap: 3px; margin-top: 8px; }
+.score-segment { flex: 1; height: 6px; background: var(--bg-tertiary); border-radius: 2px; transition: background var(--transition-med); }
+.score-segment.active { background: var(--accent-primary); }
+.score-segment.active.high { background: var(--tier-small); }
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+.stat-label { color: var(--text-muted); }
+.stat-value { color: var(--text-primary); font-family: var(--font-mono); font-weight: 500; }
+
+#messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.message { max-width: 720px; width: 100%; margin: 0 auto; display: flex; gap: 12px; animation: messageIn 0.3s ease-out; }
+@keyframes messageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.msg-avatar { width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; font-weight: 600; }
+.msg-avatar.user-av { background: linear-gradient(135deg, var(--accent-primary), #a29bfe); color: white; }
+.msg-avatar.ai-av { background: linear-gradient(135deg, #00cec9, #00b894); color: white; }
+.msg-body { flex: 1; min-width: 0; }
+.msg-header { font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); }
+.msg-content { font-size: 14px; line-height: 1.65; color: var(--text-primary); word-wrap: break-word; white-space: pre-wrap; }
+.msg-meta { font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono); }
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+.typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-secondary); animation: typingBounce 1.2s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-6px); opacity: 1; } }
+
+#input-area { padding: 16px 20px; border-top: 1px solid var(--border-subtle); background: var(--bg-secondary); flex-shrink: 0; }
+#input-row { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+#chat-input {
+  flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); padding: 12px 16px; font-family: var(--font-sans);
+  font-size: 14px; color: var(--text-primary); resize: none; outline: none;
+  min-height: 44px; max-height: 160px; line-height: 1.5;
+  transition: border-color var(--transition-fast);
 }
-.react-badge:hover{transform:scale(1.25)}
-.react-count{font-size:11px;color:rgba(255,200,230,.7);font-family:'Patrick Hand',cursive}
-.sys-msg{text-align:center;font-family:'Bangers',cursive;font-size:12px;letter-spacing:2px;color:rgba(255,158,213,.3);padding:4px}
-.typing-ind{align-self:flex-start;background:var(--bubble-other);border:1px solid rgba(255,110,180,.15);border-radius:18px;border-bottom-left-radius:4px;padding:10px 14px;display:none}
-.typing-ind.on{display:flex;gap:6px;align-items:center}
-.tdot{width:8px;height:8px;border-radius:50%;animation:tdot 1.2s ease-in-out infinite}
-.tdot:nth-child(1){background:var(--pink);animation-delay:0s}
-.tdot:nth-child(2){background:var(--purple);animation-delay:.2s}
-.tdot:nth-child(3){background:var(--pink2);animation-delay:.4s}
-@keyframes tdot{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-7px);opacity:1}}
-.chat-input-area{
-  position:relative;z-index:20;background:rgba(8,3,20,.94);
-  border-top:1px solid rgba(255,110,180,.3);
-  padding:10px 12px;display:flex;gap:8px;align-items:flex-end;
-  backdrop-filter:blur(24px);flex-shrink:0;
+#chat-input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-glow); }
+#chat-input::placeholder { color: var(--text-muted); }
+#send-btn {
+  width: 44px; height: 44px; border-radius: var(--radius-md); border: none;
+  background: linear-gradient(135deg, var(--accent-primary), #8b7cf7);
+  color: white; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: all var(--transition-fast); flex-shrink: 0;
 }
-.chat-input{
-  flex:1;background:rgba(255,110,180,.07);border:1.5px solid rgba(255,110,180,.3);
-  border-radius:22px;padding:11px 18px;color:#ffe8f5;
-  font-family:'Patrick Hand',cursive;font-size:17px;outline:none;resize:none;
-  max-height:90px;line-height:1.4;transition:border-color .2s,box-shadow .2s;
-  font-weight:bold;text-shadow:0 1px 4px rgba(0,0,0,.8);
+#send-btn:hover { transform: scale(1.05); box-shadow: var(--shadow-glow); }
+#send-btn:active { transform: scale(0.95); }
+#send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+#send-btn svg { width: 18px; height: 18px; }
+
+#init-overlay {
+  position: fixed; inset: 0; z-index: 1000; background: var(--bg-primary);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 24px; transition: opacity 0.5s ease;
 }
-.chat-input:focus{border-color:var(--pink);box-shadow:0 0 16px rgba(255,110,180,.3)}
-.chat-input::placeholder{color:rgba(255,158,213,.3)}
-.send-btn{
-  width:48px;height:48px;border-radius:50%;background:var(--kawaii-grad);
-  border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  font-size:22px;flex-shrink:0;
-  box-shadow:0 4px 16px rgba(255,110,180,.6);
-  transition:transform .12s,box-shadow .12s;
+#init-overlay.hidden { opacity: 0; pointer-events: none; }
+.init-logo {
+  font-size: 48px; font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary), var(--tier-small));
+  background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: logoGlow 3s ease-in-out infinite alternate;
 }
-.send-btn:active{transform:scale(.85);box-shadow:0 1px 6px rgba(255,110,180,.3)}
-.react-picker{
-  position:fixed;z-index:200;background:rgba(10,4,25,.97);
-  border:1.5px solid rgba(255,110,180,.4);border-radius:40px;
-  padding:8px 14px;display:flex;gap:10px;backdrop-filter:blur(20px);
-  box-shadow:0 8px 32px rgba(0,0,0,.8),0 0 24px rgba(255,110,180,.2);
-  transition:opacity .2s,transform .2s;
+@keyframes logoGlow { 0% { filter: brightness(1); } 100% { filter: brightness(1.3); } }
+.init-status { font-size: 14px; color: var(--text-secondary); text-align: center; max-width: 400px; }
+.init-progress { width: 260px; height: 4px; background: var(--bg-tertiary); border-radius: 2px; overflow: hidden; }
+.init-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); width: 0%; transition: width 0.3s ease; border-radius: 2px; }
+
+@media (max-width: 768px) {
+  #status-bar { padding: 8px 10px; gap: 6px; }
+  .status-chip { font-size: 11px; padding: 4px 8px; }
+  #messages { padding: 12px; gap: 12px; }
+  #input-area { padding: 10px 12px; }
+  .msg-avatar { width: 28px; height: 28px; font-size: 12px; }
 }
-.react-picker.hidden{opacity:0;pointer-events:none;transform:translateY(8px)}
-.rpick{font-size:24px;cursor:pointer;transition:transform .15s;user-select:none;line-height:1}
-.rpick:hover{transform:scale(1.5) translateY(-5px)}
-#msg3d{position:fixed;inset:0;z-index:5;pointer-events:none}
-.ripple{position:fixed;border-radius:50%;border:3px solid var(--pink);pointer-events:none;z-index:999;animation:rOut .9s ease-out forwards}
-@keyframes rOut{from{width:8px;height:8px;opacity:1;transform:translate(-50%,-50%) scale(1)}to{width:200px;height:200px;opacity:0;transform:translate(-50%,-50%) scale(1)}}
-.star-particle{position:fixed;pointer-events:none;z-index:998;font-size:18px;animation:starFly .8s ease-out forwards}
-@keyframes starFly{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(.3)}}
-#flash-overlay{position:fixed;inset:0;z-index:999;pointer-events:none;background:rgba(255,110,180,0);transition:background .1s}
 </style>
 </head>
 <body>
-<div id="bg-img"></div>
-<div id="bg-overlay"></div>
-<canvas id="three-canvas"></canvas>
-<canvas id="msg3d"></canvas>
-<div id="flash-overlay"></div>
 
-<div class="screen" id="welcome-screen">
-  <div class="welcome-card">
-    <span class="title-iron">PUDÚ CHAT</span>
-    <div class="title-sub">🦌 chat del bosque mágico chileno 🌿</div>
-    <div class="pudu-zone">
-      <div class="pudu-wrap" id="pudu-btn">
-        <div class="ring"></div><div class="ring"></div><div class="ring"></div>
-        <!-- SVG Pudú kawaii -->
-        <svg class="pudu-img" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="bodG" cx="50%" cy="40%"><stop offset="0%" stop-color="#c8a46e"/><stop offset="100%" stop-color="#8b5e3c"/></radialGradient>
-            <radialGradient id="faceG" cx="50%" cy="40%"><stop offset="0%" stop-color="#ddb87a"/><stop offset="100%" stop-color="#a0713f"/></radialGradient>
-          </defs>
-          <!-- cuerpo -->
-          <ellipse cx="100" cy="136" rx="46" ry="38" fill="url(#bodG)"/>
-          <!-- patas -->
-          <rect x="65" y="158" width="12" height="26" rx="6" fill="#8b5e3c"/>
-          <rect x="82" y="162" width="12" height="22" rx="6" fill="#8b5e3c"/>
-          <rect x="106" y="162" width="12" height="22" rx="6" fill="#8b5e3c"/>
-          <rect x="123" y="158" width="12" height="26" rx="6" fill="#8b5e3c"/>
-          <!-- pezuñas -->
-          <ellipse cx="71" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
-          <ellipse cx="88" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
-          <ellipse cx="112" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
-          <ellipse cx="129" cy="184" rx="9" ry="5" fill="#5c3a1e"/>
-          <!-- cola -->
-          <ellipse cx="148" cy="130" rx="10" ry="7" fill="#e8d4b0"/>
-          <!-- cabeza -->
-          <ellipse cx="100" cy="80" rx="34" ry="32" fill="url(#faceG)"/>
-          <!-- orejas con cuernitos tiernos -->
-          <ellipse cx="72" cy="52" rx="10" ry="18" fill="#c8a46e" transform="rotate(-15 72 52)"/>
-          <ellipse cx="128" cy="52" rx="10" ry="18" fill="#c8a46e" transform="rotate(15 128 52)"/>
-          <ellipse cx="72" cy="52" rx="6" ry="12" fill="#f0c8a0" transform="rotate(-15 72 52)"/>
-          <ellipse cx="128" cy="52" rx="6" ry="12" fill="#f0c8a0" transform="rotate(15 128 52)"/>
-          <!-- mini cornamenta pudú -->
-          <line x1="72" y1="38" x2="66" y2="22" stroke="#8b5e3c" stroke-width="3" stroke-linecap="round"/>
-          <line x1="66" y1="22" x2="60" y2="16" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
-          <line x1="66" y1="22" x2="72" y2="14" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
-          <line x1="128" y1="38" x2="134" y2="22" stroke="#8b5e3c" stroke-width="3" stroke-linecap="round"/>
-          <line x1="134" y1="22" x2="128" y2="14" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
-          <line x1="134" y1="22" x2="140" y2="16" stroke="#8b5e3c" stroke-width="2.5" stroke-linecap="round"/>
-          <!-- ojos kawaii grandes -->
-          <ellipse cx="86" cy="78" rx="9" ry="10" fill="#1a0a00"/>
-          <ellipse cx="114" cy="78" rx="9" ry="10" fill="#1a0a00"/>
-          <ellipse cx="88" cy="75" rx="3" ry="3.5" fill="white" opacity=".85"/>
-          <ellipse cx="116" cy="75" rx="3" ry="3.5" fill="white" opacity=".85"/>
-          <ellipse cx="83" cy="82" rx="1.5" ry="1.5" fill="white" opacity=".5"/>
-          <ellipse cx="111" cy="82" rx="1.5" ry="1.5" fill="white" opacity=".5"/>
-          <!-- mejillas rosadas -->
-          <ellipse cx="73" cy="90" rx="10" ry="6" fill="#ff9ed5" opacity=".45"/>
-          <ellipse cx="127" cy="90" rx="10" ry="6" fill="#ff9ed5" opacity=".45"/>
-          <!-- nariz y boca -->
-          <ellipse cx="100" cy="93" rx="5" ry="3.5" fill="#c06040"/>
-          <path d="M 88 100 Q 100 96 112 100" stroke="#1a0a00" stroke-width="2" fill="none" stroke-linecap="round"/>
-          <!-- mancha blanca pecho -->
-          <ellipse cx="100" cy="120" rx="18" ry="12" fill="#e8d4b0" opacity=".6"/>
-          <!-- estrellitas mágicas -->
-          <polygon points="100,108 103,116 111,116 105,121 107,129 100,124 93,129 95,121 89,116 97,116" fill="#ffd700" opacity=".9"/>
-        </svg>
-        <div class="tap-hint">🌿 TAP AL PUDÚ 🌿</div>
+<div id="init-overlay">
+  <div class="init-logo">P2P-LLM</div>
+  <div class="init-status" id="init-status">Initializing local AI engine…</div>
+  <div class="init-progress"><div class="init-progress-fill" id="init-progress-fill"></div></div>
+</div>
+
+<div id="status-bar">
+  <div class="status-chip" id="chip-tier"><span class="dot" id="chip-tier-dot"></span><span id="chip-tier-text">TIER: —</span></div>
+  <div class="status-chip" id="chip-mode"><span class="dot" id="chip-mode-dot"></span><span id="chip-mode-text">MODE: —</span></div>
+  <div class="status-chip" id="chip-peers"><span class="dot"></span><span id="chip-peers-text">PEERS: 0</span></div>
+  <div class="status-chip" id="chip-speed"><span class="dot"></span><span id="chip-speed-text">0 tok/s</span></div>
+  <div class="status-chip" id="chip-score"><span class="dot"></span><span id="chip-score-text">SCORE: 0</span></div>
+  <div class="status-chip" id="chip-relays"><span class="dot" id="chip-relays-dot" style="background:var(--peer-slow)"></span><span id="chip-relays-text">RELAYS: 0/0</span></div>
+</div>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="sidebar-section">
+      <h3>⚡ Connected Peers</h3>
+      <div id="peer-list"><div style="font-size:12px;color:var(--text-muted);padding:8px 0;">No peers connected</div></div>
+    </div>
+    <div class="sidebar-section" id="relay-section">
+      <h3>🔗 Nostr Relays</h3>
+      <div id="relay-list"></div>
+    </div>
+    <div class="sidebar-section" id="model-progress-section">
+      <h3>📦 Model Loading</h3>
+      <div id="model-name-display" style="font-size:12px;color:var(--text-secondary);"></div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="model-progress-bar"></div></div>
+      <div id="model-progress-label"></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>📊 Network Score</h3>
+      <div class="score-bar" id="score-bar"></div>
+      <div style="margin-top:12px">
+        <div class="stat-row"><span class="stat-label">Score</span><span class="stat-value" id="stat-score">0</span></div>
+        <div class="stat-row"><span class="stat-label">Avg RTT</span><span class="stat-value" id="stat-rtt">—</span></div>
+        <div class="stat-row"><span class="stat-label">Tok/s (local)</span><span class="stat-value" id="stat-tps-local">—</span></div>
+        <div class="stat-row"><span class="stat-label">Tok/s (effective)</span><span class="stat-value" id="stat-tps-eff">—</span></div>
       </div>
     </div>
-    <div class="q-text">¿LISTO PARA EL BOSQUE MÁGICO?</div>
-    <div class="q-sub">se te asignará un nombre del bosque nativo ✨</div>
-    <div id="assigned-name-display">preparando tu nombre...</div>
-    <button class="enter-btn" id="enter-btn" onclick="enterChat()" style="margin-top:16px">
-      🦌 ENTRAR AL BOSQUE 🌿
-    </button>
-  </div>
-</div>
-
-<div class="screen hidden" id="connecting-screen">
-  <div class="connecting-card">
-    <div class="connecting-title">CONECTANDO... 🌿</div>
-    <span class="connecting-pudu">🦌</span>
-    <div class="dots" style="margin:14px 0"><span></span><span></span><span></span></div>
-    <div id="connecting-text" style="font-size:13px;color:rgba(255,158,213,.45)">Conectando a los relays del bosque...</div>
-    <div class="relay-dots" id="relay-dots"></div>
-  </div>
-</div>
-
-<div class="screen hidden" id="chat-screen">
-  <div class="chat-header">
-    <div class="h-avatar" id="h-avatar">🦌</div>
-    <div style="flex:1">
-      <div class="h-name" id="h-name">PUDÚ CHAT DEL BOSQUE</div>
-      <div id="h-status" class="h-status">● conectando...</div>
+    <div class="sidebar-section">
+      <h3>🖥️ Device Info</h3>
+      <div>
+        <div class="stat-row"><span class="stat-label">Device Tier</span><span class="stat-value" id="stat-device-tier">—</span></div>
+        <div class="stat-row"><span class="stat-label">WebGPU</span><span class="stat-value" id="stat-webgpu">—</span></div>
+        <div class="stat-row"><span class="stat-label">Memory</span><span class="stat-value" id="stat-memory">—</span></div>
+        <div class="stat-row"><span class="stat-label">Peer ID</span><span class="stat-value" id="stat-peer-id" style="font-size:10px;">—</span></div>
+      </div>
     </div>
-    <div class="h-logo">🌿</div>
+  </aside>
+  <div id="main">
+    <div id="messages"></div>
+    <div id="input-area">
+      <div id="input-row">
+        <textarea id="chat-input" rows="1" placeholder="Type a message… (works offline)" autofocus></textarea>
+        <button id="send-btn" title="Send message">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
-  <div class="chat-messages" id="chat-messages">
-    <div class="sys-msg">⚡ PUDÚ CHAT DEL BOSQUE DIMENSIONAL ⚡</div>
-    <div class="sys-msg">🦌 bienvenid@ al bosque nativo chileno 🌿</div>
-  </div>
-  <div class="chat-input-area">
-    <textarea class="chat-input" id="chat-input" placeholder="escribe algo, bicho del bosque... 🌿" rows="1"></textarea>
-    <button class="send-btn" onclick="sendMessage()">🦌</button>
-  </div>
-</div>
-
-<div class="react-picker hidden" id="react-picker">
-  <span class="rpick" data-e="⭐">⭐</span>
-  <span class="rpick" data-e="🦌">🦌</span>
-  <span class="rpick" data-e="😂">😂</span>
-  <span class="rpick" data-e="🤘">🤘</span>
-  <span class="rpick" data-e="🌿">🌿</span>
-  <span class="rpick" data-e="🔥">🔥</span>
-  <span class="rpick" data-e="🫐">🫐</span>
-  <span class="rpick" data-e="✨">✨</span>
 </div>
 
 <script type="module">
-// ═══════════════════════════════════════════════════════════════
-//  PUDÚ CHAT — powered by Nostr protocol
-//  Sin Firebase, sin servidores propios: puro Nostr descentralizado
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+//  WEB WORKER FOR NON-BLOCKING LLM INFERENCE
+// ═══════════════════════════════════════════════════
+const WORKER_CODE = `
+import { WebWorkerMLCEngineHandler } from "https://esm.run/@mlc-ai/web-llm";
+const handler = new WebWorkerMLCEngineHandler();
+self.onmessage = (msg) => { handler.onmessage(msg); };
+`;
 
-// ── NOMBRES DEL BOSQUE NATIVO CHILENO ────────────────────────
-const ANIMALES = [
-  'Pudú','Huemul','Guiña','Vizcacha','Coipo','Chungungo','Puma',
-  'Zorro','Quique','Culpeo','Monito del Monte','Güiña','Degú',
-  'Chinchilla','Peuco','Tricahue','Cóndor','Garuma','Lobo de Mar',
-  'Nutria','Carpintero','Tiuque','Cachudito','Rayadito'
-];
-
-const PALABRAS_MAGICAS = [
-  'Camahueto','Pincoya','Trauco','Colo-Colo','Cherufe','Basilisco',
-  'Alicanto','Invunche','Fiura','Piuchén','Caleuche','Imbunche',
-  'Millalobo','Anchimallén','Guallipén','Carbunclo','Chonchón',
-  'Trelquehue','Cucao','Colocolo','Nakaq','Huecuvú','Nguruvilu'
-];
-
-// ── FILTRO DE GARABATOS CHILENOS ──────────────────────────────
-const GARABATOS = [
-  // weon y variantes
-  { re: /\bw[ae3]o+n(a[sz]?)?\b/gi, r: 'huemul' },
-  { re: /\bhu[ea]v[oó]n(a[sz]?)?\b/gi, r: 'cóndor' },
-  { re: /\bgu[ea]v[oó]n(a[sz]?)?\b/gi, r: 'cóndor' },
-  // ctm y variantes
-  { re: /\bctm\b/gi, r: 'maqui' },
-  { re: /\bconcha\s?tu?\s?madre?\b/gi, r: 'murtilla' },
-  { re: /\bc\.?t\.?m\.?\b/gi, r: 'maqui' },
-  { re: /\bconchesumadre\b/gi, r: 'murtilla' },
-  // aweonado y variantes
-  { re: /\baw[ea3]ona[od]+\b/gi, r: 'guiñazo' },
-  { re: /\bhw[ea]ona[od]+\b/gi, r: 'guiñazo' },
-  // culiao y variantes
-  { re: /\bculia+o\b/gi, r: 'chilco' },
-  { re: /\bculia+[od]a+\b/gi, r: 'chilco' },
-  { re: /\bculi+ao\b/gi, r: 'chilco' },
-  // conchetumare y variantes
-  { re: /\bkonche\s?tu\s?mare\b/gi, r: 'murtilla' },
-  // chucha y variantes
-  { re: /\bchucha\b/gi, r: 'digüeñe' },
-  { re: /\bchuche\b/gi, r: 'digüeñe' },
-  { re: /\bchuchatumare\b/gi, r: 'digüeñe' },
-  // csm
-  { re: /\bcsm\b/gi, r: 'coicopé' },
-  // puta y variantes
-  { re: /\bputa(?:madre|s)?\b/gi, r: 'pangue' },
-  { re: /\bputama+dre\b/gi, r: 'pangue' },
-  // mierda
-  { re: /\bmierda\b/gi, r: 'maqui silvestre' },
-  // gil y variantes
-  { re: /\bgil\b/gi, r: 'güiña' },
-  { re: /\bgil[ae]s?\b/gi, r: 'güiña' },
-  // cagao/cagada
-  { re: /\bcaga[od][ao]?\b/gi, r: 'coipo' },
-  // maraco
-  { re: /\bmaraco\b/gi, r: 'cachudito' },
-  // pico (grosero)
-  { re: /\bpic(o|u)\s+(tus?|su)\b/gi, r: 'quillay' },
-  // andate a la
-  { re: /\bándate\s+a\s+la\s+chucha\b/gi, r: 'ándate al bosque' },
-  { re: /\bandate\s+a\s+la\s+chucha\b/gi, r: 'ándate al bosque' },
-];
-
-function filtrarGarabatos(texto) {
-  let t = texto;
-  for (const {re, r} of GARABATOS) {
-    t = t.replace(re, r);
-  }
-  return t;
+function createWorker() {
+  const blob = new Blob([WORKER_CODE], { type: "text/javascript" });
+  return new Worker(URL.createObjectURL(blob), { type: "module" });
 }
 
-// ── NOSTR CONFIG ──────────────────────────────────────────────
-const ROOM = "pudu-chat-bosque-chileno-v1";
+const webllm = await import("https://esm.run/@mlc-ai/web-llm");
 
-const RELAY_URLS = [
-  "wss://relay.damus.io",
-  "wss://nos.lol",
-  "wss://offchain.pub",
-  "wss://relay.nostr.band/all",
-  "wss://nostr.mom",
-];
+// ═══════════════════════════════════════════════════
+//  CONFIG — todos wss://, sin localhost
+// ═══════════════════════════════════════════════════
+const CONFIG = {
+  defaultModel: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+  maxPeers: 6,
+  maxRemoteWorkers: 2,
+  maxAssistLatencyMs: 180,
+  hysteresisMs: 3000,
+  speculativeTokens: 4,
+  mobileAssistOnly: true,
 
-// ── ESTADO GLOBAL ─────────────────────────────────────────────
-let myName = null;
-let privKeyBytes = null;
-let pubKeyHex = "";
-let seen = new Set();
-let sockets = {};
-let dotEls = {};
-let reactions = {}; // msgId -> { user -> emoji }
-let chatEntered = false;
-let nostrMod = null;
-let typTO = null;
-let pickerMsgId = null;
+  // ── Nostr public relays ──────────────────────────
+  // Lista verificada — todos responden (403 HTTP = correcto para relays Nostr).
+  // Se conectan en paralelo; si uno falla reconecta con backoff.
+  // Los mensajes se publican en TODOS los activos simultáneamente.
+  nostrRelays: [
+    // ── Tier 1: muy confiables, usados en producción
+    "wss://relay.damus.io",
+    "wss://nos.lol",
+    "wss://offchain.pub",
+    "wss://relay.nostr.band/all",
+    "wss://nostr.mom",
+    "wss://relay.snort.social",
+    // ── Tier 2: buenos uptime
+    "wss://nostr.wine",
+    "wss://relay.primal.net",
+    "wss://nostr.bitcoiner.social",
+    "wss://nostr-pub.wellorder.net",
+    "wss://relay.nostr.info",
+    "wss://nostr.oxtr.dev",
+    "wss://purplepag.es",
+    "wss://relay.nostr.wirednet.jp",
+    "wss://nostr.fmt.wiz.biz",
+    // ── Tier 3: extras
+    "wss://relay.nostr.bg",
+    "wss://nostr.zbd.gg",
+    "wss://relay.nostr.com.au",
+    "wss://nostr.wine",
+    "wss://relay.nostr.jabber.ch"
+  ],
 
-// ── GENERAR NOMBRE ÚNICO ──────────────────────────────────────
-// Guardamos nombres usados en la sala via mensajes de presencia
-let usedNamesInRoom = new Set();
+  // Tiempo máximo para considerar un relay muerto antes de reconectar (ms)
+  relayReconnectMs: 8000,
+  relayMaxRetries: 999, // reintentos infinitos con backoff
 
-function randomName() {
-  const a = ANIMALES[Math.floor(Math.random() * ANIMALES.length)];
-  const m = PALABRAS_MAGICAS[Math.floor(Math.random() * PALABRAS_MAGICAS.length)];
-  return `${a} ${m}`;
-}
-
-function generateUniqueName() {
-  let name;
-  let tries = 0;
-  do {
-    name = randomName();
-    tries++;
-  } while (usedNamesInRoom.has(name) && tries < 100);
-  return name;
-}
-
-// ── AVATAR POR NOMBRE ─────────────────────────────────────────
-const ANIMAL_EMOJIS = {
-  'Pudú':'🦌','Huemul':'🦌','Guiña':'🐱','Güiña':'🐱','Vizcacha':'🐭',
-  'Coipo':'🦦','Chungungo':'🦦','Puma':'🐆','Zorro':'🦊','Quique':'🦡',
-  'Culpeo':'🦊','Monito del Monte':'🐨','Degú':'🐭','Chinchilla':'🐹',
-  'Peuco':'🦅','Tricahue':'🦜','Cóndor':'🦅','Garuma':'🐦','Lobo de Mar':'🦭',
-  'Nutria':'🦦','Carpintero':'🐦','Tiuque':'🦅','Cachudito':'🐦','Rayadito':'🐦'
+  appNamespace: "p2p-llm-swarm-v1",
+  presenceIntervalMs: 15000,
+  presenceTTLMs: 45000,
+  pingIntervalMs: 5000,
+  scoreRecalcMs: 2000,
+  tiers: [
+    { name: "small",  model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",  minScore: 0, mode: "local" },
+    { name: "medium", model: "Llama-3.2-3B-Instruct-q4f16_1-MLC",  minScore: 2, mode: "assist" },
+    { name: "large",  model: "Llama-3.1-8B-Instruct-q4f16_1-MLC",  minScore: 4, mode: "assist+verify" }
+  ]
 };
-function avatarFor(name) {
-  const animal = name ? name.split(' ')[0] : '';
-  return ANIMAL_EMOJIS[animal] || '🌿';
+
+// ═══════════════════════════════════════════════════
+//  GLOBALS
+// ═══════════════════════════════════════════════════
+const peerId = crypto.randomUUID().slice(0, 12);
+let engine = null;
+let currentModelId = null;
+let isModelLoading = false;
+let isGenerating = false;
+
+let deviceTier = "C";
+let hasWebGPU = false;
+let memoryMB = 0;
+let localTPS = 0;
+let effectiveTPS = 0;
+
+const peers = new Map();
+let networkScore = 0;
+let currentTierIdx = 0;
+let lastTierChange = 0;
+
+// Mapa url → { ws, status, retries, retryTimer }
+const relayMap = new Map();
+const seenEventIds = new Set();
+const chatHistory = [];
+
+// ═══════════════════════════════════════════════════
+//  BINARY PROTOCOL
+// ═══════════════════════════════════════════════════
+const MSG = { HELLO:1, TOK_REQ:2, TOK_RES:3, LOGITS:4, PING:0x10, PONG:0x11, VER_REQ:0x20, VER_RES:0x21 };
+
+function encodeMsg(type, reqId, seq, payload) {
+  const pb = payload ? new TextEncoder().encode(JSON.stringify(payload)) : new Uint8Array(0);
+  const buf = new ArrayBuffer(7 + pb.length);
+  const dv = new DataView(buf);
+  dv.setUint8(0, type); dv.setUint32(1, reqId); dv.setUint16(5, seq);
+  new Uint8Array(buf, 7).set(pb);
+  return buf;
+}
+function decodeMsg(buf) {
+  const dv = new DataView(buf);
+  const type = dv.getUint8(0), reqId = dv.getUint32(1), seq = dv.getUint16(5);
+  let payload = null;
+  if (buf.byteLength > 7) try { payload = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 7))); } catch(e) {}
+  return { type, reqId, seq, payload };
 }
 
-// ── NOSTR CRYPTO ──────────────────────────────────────────────
-async function generateKeypair() {
-  nostrMod = await import("https://esm.sh/nostr-tools@2/pure");
-  privKeyBytes = nostrMod.generateSecretKey();
-  pubKeyHex = nostrMod.getPublicKey(privKeyBytes);
-}
-
-async function signEvent(template) {
-  return nostrMod.finalizeEvent(template, privKeyBytes);
-}
-
-// ── CONEXIÓN A RELAYS ─────────────────────────────────────────
-function connectRelay(url, index) {
-  const dotsContainer = document.getElementById('relay-dots');
-  const dot = document.createElement('div');
-  dot.className = 'rdot';
-  dot.title = url;
-  dotsContainer.appendChild(dot);
-  dotEls[url] = dot;
-
-  function connect() {
-    if (sockets[url] && sockets[url].readyState <= 1) return;
-    const ws = new WebSocket(url);
-    sockets[url] = ws;
-
-    ws.onopen = () => {
-      dot.className = 'rdot ok';
-      const since = Math.floor(Date.now()/1000) - 7200;
-      ws.send(JSON.stringify(["REQ","sub-pudu",{ kinds:[1], "#t":[ROOM], since }]));
-    };
-
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        const type = msg[0];
-        if (type === "EVENT") {
-          const ev = msg[2];
-          if (!ev || seen.has(ev.id)) return;
-          seen.add(ev.id);
-          try {
-            const data = JSON.parse(ev.content);
-            if (data.type === 'presence') {
-              // registrar nombres usados
-              if (data.name) usedNamesInRoom.add(data.name);
-            } else if (data.type === 'reaction') {
-              // procesar reacción
-              if (data.msgId && data.emoji && data.name) {
-                if (!reactions[data.msgId]) reactions[data.msgId] = {};
-                reactions[data.msgId][data.name] = data.emoji;
-                updateReactionsUI(data.msgId);
-              }
-            } else if (data.user && data.text) {
-              // mensaje normal
-              if (data.name) usedNamesInRoom.add(data.name);
-              const isMe = ev.pubkey === pubKeyHex;
-              const msgId = ev.id;
-              addMsgToUI(msgId, data.user, data.text, isMe, ev.created_at * 1000);
-              if (!isMe) {
-                add3DText(data.text, false);
-                playPuduMeow(0.9 + Math.random()*0.3, 'chirp');
-              }
-            }
-          } catch {}
-        } else if (type === "EOSE") {
-          if (!chatEntered) enterChatScreen();
-          updateStatus();
-          msgInput.disabled = false;
-          sendBtn.disabled = false;
-        }
-      } catch {}
-    };
-
-    ws.onerror = () => { dot.className = 'rdot fail'; };
-    ws.onclose = () => {
-      dot.className = 'rdot fail';
-      setTimeout(connect, 5000);
-    };
-  }
-  connect();
-}
-
-function updateStatus() {
-  const connected = Object.values(sockets).filter(s => s.readyState === 1).length;
-  const st = document.getElementById('h-status');
-  if (st) {
-    st.textContent = `● ${connected} relay${connected!==1?'s':''} online`;
-    st.className = 'h-status';
-  }
-}
-
-async function publishEvent(content) {
-  const template = {
-    kind: 1,
-    created_at: Math.floor(Date.now()/1000),
-    tags: [["t", ROOM]],
-    content: JSON.stringify(content)
-  };
-  let event;
-  try { event = await signEvent(template); } catch { return; }
-  seen.add(event.id);
-  const msg = JSON.stringify(["EVENT", event]);
-  for (const [, ws] of Object.entries(sockets)) {
-    if (ws.readyState === 1) ws.send(msg);
-  }
-  return event.id;
-}
-
-// ── PRESENCIA ─────────────────────────────────────────────────
-function broadcastPresence() {
-  publishEvent({ type: 'presence', name: myName });
-}
-
-// ── ENTRAR AL CHAT ────────────────────────────────────────────
-window.enterChat = async function() {
-  const btn = document.getElementById('enter-btn');
-  btn.disabled = true;
-  btn.textContent = '🌿 Conectando...';
-  
-  show('connecting-screen');
-  initSensors();
-
+// ═══════════════════════════════════════════════════
+//  DEVICE CLASSIFICATION
+// ═══════════════════════════════════════════════════
+async function classifyDevice() {
+  hasWebGPU = false;
   try {
-    await generateKeypair();
+    if ('gpu' in navigator && navigator.gpu) {
+      const adapter = await Promise.race([
+        navigator.gpu.requestAdapter(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))
+      ]);
+      hasWebGPU = !!adapter;
+      console.log('[Device] WebGPU:', hasWebGPU ? (adapter.name || 'ok') : 'no adapter');
+    } else {
+      console.log('[Device] navigator.gpu no disponible en este browser/contexto');
+    }
   } catch(e) {
-    document.getElementById('connecting-text').textContent = 'Error generando claves: ' + e.message;
+    console.log('[Device] WebGPU error:', e.message);
+    hasWebGPU = false;
+  }
+  memoryMB = Math.round((navigator.deviceMemory || 2) * 1024);
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const screenSmall = Math.min(screen.width, screen.height) < 768;
+  const touch = navigator.maxTouchPoints > 0 && !window.matchMedia('(pointer: fine)').matches;
+  if (isMobile || (screenSmall && touch)) deviceTier = "C";
+  else if (hasWebGPU && memoryMB >= 8192) deviceTier = "A";
+  else deviceTier = "B";
+  console.log(`[Device] Tier=${deviceTier} WebGPU=${hasWebGPU} RAM=${memoryMB}MB`);
+  updateDeviceStats();
+}
+
+// ═══════════════════════════════════════════════════
+//  ENGINE
+// ═══════════════════════════════════════════════════
+async function initEngine(modelId) {
+  if (isModelLoading) return;
+  isModelLoading = true;
+  currentModelId = modelId || CONFIG.defaultModel;
+  showModelProgress(true, currentModelId);
+  updateInitStatus(`Loading model: ${currentModelId}`);
+  try {
+    const worker = createWorker();
+    engine = await webllm.CreateWebWorkerMLCEngine(worker, currentModelId, {
+      initProgressCallback: (progress) => {
+        const pct = Math.round((progress.progress || 0) * 100);
+        updateModelProgress(pct, progress.text || '');
+        updateInitProgress(pct);
+      }
+    });
+    isModelLoading = false;
+    showModelProgress(false);
+  } catch (err) {
+    console.error('[Engine] Load failed:', err);
+    isModelLoading = false;
+    showModelProgress(false);
+    if (currentModelId !== CONFIG.tiers[0].model) {
+      currentTierIdx = 0;
+      await initEngine(CONFIG.tiers[0].model);
+    }
+  }
+}
+
+async function switchModel(modelId) {
+  if (modelId === currentModelId || isModelLoading || isGenerating) return;
+  showModelProgress(true, modelId);
+  try {
+    const worker = createWorker();
+    engine = await webllm.CreateWebWorkerMLCEngine(worker, modelId, {
+      initProgressCallback: (progress) => {
+        const pct = Math.round((progress.progress || 0) * 100);
+        updateModelProgress(pct, progress.text || '');
+      }
+    });
+    currentModelId = modelId;
+    isModelLoading = false;
+    showModelProgress(false);
+  } catch (err) {
+    console.error('[Engine] Switch failed:', err);
+    isModelLoading = false;
+    showModelProgress(false);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  CHAT / INFERENCE
+// ═══════════════════════════════════════════════════
+async function generateResponse(userMessage) {
+  if (!engine || isGenerating) return;
+  isGenerating = true;
+  chatHistory.push({ role: "user", content: userMessage });
+  addMessageToUI("user", userMessage);
+  const aiMsgEl = addMessageToUI("assistant", null, true);
+  const tier = CONFIG.tiers[currentTierIdx];
+  let fullResponse = "", tokenCount = 0;
+  const startTime = performance.now();
+  try {
+    const messages = [
+      { role: "system", content: "You are a helpful AI assistant running in a decentralized P2P network. Be concise." },
+      ...chatHistory.slice(-10)
+    ];
+    const chunks = await engine.chat.completions.create({ messages, stream: true, temperature: 0.7, max_tokens: 512 });
+    const typingEl = aiMsgEl.querySelector('.typing-indicator');
+    if (typingEl) typingEl.remove();
+    const contentEl = aiMsgEl.querySelector('.msg-content');
+    for await (const chunk of chunks) {
+      const token = chunk.choices[0]?.delta?.content || "";
+      fullResponse += token; tokenCount++;
+      contentEl.textContent = fullResponse;
+      if (tier.mode !== "local") maybeSendTokenRequest(fullResponse, tokenCount);
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+    const elapsedMs = performance.now() - startTime;
+    localTPS = Math.round((tokenCount / (elapsedMs / 1000)) * 10) / 10;
+    effectiveTPS = localTPS;
+    const metaEl = aiMsgEl.querySelector('.msg-meta');
+    if (metaEl) metaEl.textContent = `${tier.name} · ${tier.mode} · ${localTPS} tok/s · ${Math.round(elapsedMs)}ms`;
+    chatHistory.push({ role: "assistant", content: fullResponse });
+  } catch (err) {
+    const contentEl = aiMsgEl.querySelector('.msg-content');
+    const typingEl = aiMsgEl.querySelector('.typing-indicator');
+    if (typingEl) typingEl.remove();
+    contentEl.textContent = `⚠️ Error: ${err.message}`;
+  }
+  isGenerating = false;
+  updateSpeedChip();
+}
+
+function maybeSendTokenRequest(text, count) {
+  if (count % CONFIG.speculativeTokens !== 0) return;
+  let sent = 0;
+  for (const [pid, peer] of peers) {
+    if (sent >= CONFIG.maxRemoteWorkers) break;
+    if (peer.rtt > CONFIG.maxAssistLatencyMs) continue;
+    if (CONFIG.mobileAssistOnly && peer.deviceTier === "C") continue;
+    if (peer.dc?.readyState === "open") {
+      peer.dc.send(encodeMsg(MSG.TOK_REQ, Math.floor(Math.random()*0xFFFFFFFF), count,
+        { text: text.slice(-200), tokens: CONFIG.speculativeTokens }));
+      sent++;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  NOSTR RELAY MANAGER — multi-relay con fallback
+// ═══════════════════════════════════════════════════
+
+function makeEvent(content) {
+  return {
+    id: crypto.randomUUID().replace(/-/g, '').slice(0, 64),
+    pubkey: peerId.padEnd(64, '0'),
+    created_at: Math.floor(Date.now() / 1000),
+    kind: 30078,
+    tags: [["d", CONFIG.appNamespace], ["p2p-llm", "presence"]],
+    content: JSON.stringify(content),
+    sig: "0".repeat(128)
+  };
+}
+
+// Conecta todos los relays en paralelo desde el inicio
+function connectToRelays() {
+  for (const url of CONFIG.nostrRelays) {
+    relayMap.set(url, { ws: null, status: "disconnected", retries: 0, retryTimer: null });
+    connectRelay(url);
+  }
+}
+
+function connectRelay(url) {
+  const state = relayMap.get(url);
+  if (!state) return;
+
+  // Cancelar timer previo si existe
+  if (state.retryTimer) { clearTimeout(state.retryTimer); state.retryTimer = null; }
+
+  let ws;
+  try { ws = new WebSocket(url); } catch(e) {
+    scheduleReconnect(url);
     return;
   }
 
-  // Esperar un momento para que lleguen nombres usados de otros
-  document.getElementById('connecting-text').textContent = 'Conectando a relays del bosque...';
-  RELAY_URLS.forEach((url, i) => connectRelay(url, i));
-  
-  // Dar tiempo a que lleguen eventos de presencia antes de asignar nombre
-  setTimeout(() => {
-    myName = generateUniqueName();
-    usedNamesInRoom.add(myName);
-    broadcastPresence();
-  }, 2500);
-};
+  state.ws = ws;
+  state.status = "connecting";
+  updateRelayUI();
 
-function enterChatScreen() {
-  if (chatEntered) return;
-  chatEntered = true;
-  show('chat-screen');
-  document.getElementById('h-avatar').textContent = avatarFor(myName);
-  document.getElementById('h-name').textContent = myName.toUpperCase();
-  triggerEntryAnimation();
-  setupInput();
-  addSystemMsg(`🌿 Entraste al bosque como ${myName} 🦌`);
+  const openTimeout = setTimeout(() => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      ws._closed = true;
+      try { ws.close(); } catch(e) {}
+      state.status = "disconnected";
+      scheduleReconnect(url);
+      updateRelayUI();
+    }
+  }, CONFIG.relayReconnectMs);
+
+  ws.onopen = () => {
+    clearTimeout(openTimeout);
+    state.status = "connected";
+    state.retries = 0;
+    console.log(`[Relay] ✓ ${url}`);
+    updateRelayUI();
+
+    // Suscripción al namespace de la app
+    ws.send(JSON.stringify(["REQ", `sub-${peerId}`, {
+      kinds: [30078], "#d": [CONFIG.appNamespace],
+      since: Math.floor(Date.now() / 1000) - 60
+    }]));
+
+    // Publicar presencia inmediatamente en este relay
+    publishPresenceTo(ws);
+  };
+
+  ws.onmessage = (evt) => {
+    try { handleRelayMsg(JSON.parse(evt.data)); } catch(e) {}
+  };
+
+  ws.onclose = () => {
+    clearTimeout(openTimeout);
+    if (state.ws === ws) {
+      state.ws = null;
+      state.status = "disconnected";
+      updateRelayUI();
+      if (!ws._closed) scheduleReconnect(url);
+    }
+  };
+
+  ws.onerror = () => {
+    // onclose se dispara después, ahí manejamos
+  };
 }
 
-// ── UI DE MENSAJES ────────────────────────────────────────────
-const msgInput  = document.getElementById('chat-input');
-const sendBtn   = document.getElementById('send-btn') || { disabled: false };
-
-function show(id) {
-  ['welcome-screen','connecting-screen','chat-screen'].forEach(s =>
-    document.getElementById(s).classList.toggle('hidden', s!==id));
+function scheduleReconnect(url) {
+  const state = relayMap.get(url);
+  if (!state) return;
+  state.retries++;
+  // Backoff exponencial con cap en 60s
+  const delay = Math.min(1000 * Math.pow(1.5, Math.min(state.retries, 10)), 60000);
+  console.log(`[Relay] ↻ ${url} retry #${state.retries} in ${Math.round(delay/1000)}s`);
+  state.retryTimer = setTimeout(() => connectRelay(url), delay);
 }
 
-function addSystemMsg(txt) {
-  const c = document.getElementById('chat-messages');
-  const d = document.createElement('div');
-  d.className = 'sys-msg';
-  d.textContent = txt;
-  c.appendChild(d);
-  c.scrollTop = c.scrollHeight;
-}
-
-const msgEls = {}; // msgId -> row element
-
-function addMsgToUI(id, user, text, isMe, ts) {
-  if (msgEls[id]) return; // ya existe
-  const c = document.getElementById('chat-messages');
-  const atBot = c.scrollHeight - c.scrollTop - c.clientHeight < 100;
-
-  const row = document.createElement('div');
-  row.className = `msg-row ${isMe?'me':'other'}`;
-  row.dataset.id = id;
-  msgEls[id] = row;
-
-  const snd = document.createElement('div');
-  snd.className = 'msg-sender';
-  snd.textContent = isMe ? 'tú' : user;
-
-  const bub = document.createElement('div');
-  bub.className = 'msg-bubble';
-  bub.textContent = text;
-  let pt;
-  bub.addEventListener('touchstart', () => { pt = setTimeout(() => showPicker(id, bub), 500); }, {passive:true});
-  bub.addEventListener('touchend', () => clearTimeout(pt));
-  bub.addEventListener('touchmove', () => clearTimeout(pt));
-  bub.addEventListener('contextmenu', e => { e.preventDefault(); showPicker(id, bub); });
-  bub.addEventListener('dblclick', () => showPicker(id, bub));
-
-  const tm = document.createElement('div');
-  tm.className = 'msg-time';
-  const d = new Date(ts || Date.now());
-  tm.textContent = d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-
-  const reactDiv = document.createElement('div');
-  reactDiv.className = 'msg-reactions';
-  reactDiv.id = `react-${id}`;
-
-  row.appendChild(snd);
-  row.appendChild(bub);
-  row.appendChild(reactDiv);
-  row.appendChild(tm);
-
-  // Insertar antes del typing indicator si existe
-  const ti = document.getElementById('typing-ind');
-  if (ti) c.insertBefore(row, ti);
-  else c.appendChild(row);
-
-  if (atBot) c.scrollTop = c.scrollHeight;
-}
-
-function updateReactionsUI(msgId) {
-  const reactDiv = document.getElementById(`react-${msgId}`);
-  if (!reactDiv) return;
-  const reacts = reactions[msgId] || {};
-  const cnt = {};
-  Object.values(reacts).forEach(r => cnt[r] = (cnt[r]||0)+1);
-  reactDiv.innerHTML = '';
-  Object.entries(cnt).forEach(([emoji, count]) => {
-    const b = document.createElement('div');
-    b.className = 'react-badge';
-    b.innerHTML = `${emoji}<span class="react-count">${count>1?count:''}</span>`;
-    b.onclick = () => addReact(msgId, emoji);
-    reactDiv.appendChild(b);
-  });
-}
-
-// ── REACCIONES ────────────────────────────────────────────────
-function showPicker(id, el) {
-  pickerMsgId = id;
-  const p = document.getElementById('react-picker');
-  const r = el.getBoundingClientRect();
-  p.style.top = Math.max(10, r.top-58)+'px';
-  p.style.left = Math.max(8, Math.min(r.left, innerWidth-320))+'px';
-  p.classList.remove('hidden');
-  if (navigator.vibrate) navigator.vibrate(30);
-}
-
-document.getElementById('react-picker').addEventListener('click', e => {
-  const b = e.target.closest('.rpick');
-  if (b && pickerMsgId) {
-    addReact(pickerMsgId, b.dataset.e);
-    document.getElementById('react-picker').classList.add('hidden');
-    pickerMsgId = null;
+// Devuelve todos los WebSockets conectados
+function activeRelays() {
+  const result = [];
+  for (const [, state] of relayMap) {
+    if (state.ws?.readyState === WebSocket.OPEN) result.push(state.ws);
   }
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('.react-picker') && !e.target.closest('.msg-bubble')) {
-    document.getElementById('react-picker').classList.add('hidden');
-    pickerMsgId = null;
-  }
-});
-
-async function addReact(msgId, emoji) {
-  if (!reactions[msgId]) reactions[msgId] = {};
-  reactions[msgId][myName] = emoji;
-  updateReactionsUI(msgId);
-  await publishEvent({ type:'reaction', msgId, emoji, name: myName });
-  playPuduReaction();
-  spawnStars(innerWidth/2, innerHeight/2);
+  return result;
 }
 
-// ── ENVIAR MENSAJE ────────────────────────────────────────────
-window.sendMessage = async function() {
-  const inp = document.getElementById('chat-input');
-  let txt = inp.value.trim();
-  if (!txt) return;
+function publishPresenceTo(ws) {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  const content = { type: "presence", peerId, deviceTier, webgpu: hasWebGPU, memoryMB, tps: localTPS, currentModel: currentModelId, timestamp: Date.now() };
+  ws.send(JSON.stringify(["EVENT", makeEvent(content)]));
+}
 
-  // Filtrar garabatos
-  txt = filtrarGarabatos(txt);
+function publishPresence() {
+  const content = { type: "presence", peerId, deviceTier, webgpu: hasWebGPU, memoryMB, tps: localTPS, currentModel: currentModelId, timestamp: Date.now() };
+  const msg = JSON.stringify(["EVENT", makeEvent(content)]);
+  for (const ws of activeRelays()) ws.send(msg);
+}
 
-  const eventId = await publishEvent({ user: myName, text: txt, name: myName });
-  if (eventId) {
-    addMsgToUI(eventId, myName, txt, true, Date.now());
-    add3DText(txt, true);
-    spawnStars(innerWidth-80, innerHeight-80);
-    spawnRipple(innerWidth-80, innerHeight-80);
-    playSendSound();
+function publishSignal(targetId, signal) {
+  const content = { type: "signal", from: peerId, to: targetId, signal, timestamp: Date.now() };
+  const msg = JSON.stringify(["EVENT", makeEvent(content)]);
+  for (const ws of activeRelays()) ws.send(msg);
+}
+
+function handleRelayMsg(msg) {
+  if (!Array.isArray(msg) || msg[0] !== "EVENT") return;
+  const event = msg[2] || msg[1];
+  if (!event?.content || seenEventIds.has(event.id)) return;
+  seenEventIds.add(event.id);
+  if (seenEventIds.size > 1000) { const a = [...seenEventIds]; for (let i=0;i<500;i++) seenEventIds.delete(a[i]); }
+  try { const c = JSON.parse(event.content); if (c.peerId !== peerId) handleNostrContent(c); } catch(e) {}
+}
+
+function handleNostrContent(c) {
+  if (c.type === "presence") handlePeerPresence(c);
+  else if (c.type === "signal" && c.to === peerId) handleWebRTCSignal(c.from, c.signal);
+}
+
+// ═══════════════════════════════════════════════════
+//  PEER MANAGEMENT
+// ═══════════════════════════════════════════════════
+function handlePeerPresence(p) {
+  if (!peers.has(p.peerId)) {
+    if (peers.size >= CONFIG.maxPeers) return;
+    peers.set(p.peerId, { deviceTier: p.deviceTier, webgpu: p.webgpu, memoryMB: p.memoryMB, tps: p.tps||0, lastSeen: Date.now(), rtt: Infinity, conn: null, dc: null, pingTimer: null, lastPingSent: 0 });
+    if (peerId < p.peerId) initiateWebRTC(p.peerId);
+  } else {
+    const peer = peers.get(p.peerId);
+    Object.assign(peer, { deviceTier: p.deviceTier, webgpu: p.webgpu, memoryMB: p.memoryMB, tps: p.tps||0, lastSeen: Date.now() });
   }
-  inp.value = '';
-  inp.style.height = 'auto';
-  clearTyping();
-};
+  updatePeerListUI();
+}
 
+function removePeer(pid) {
+  const p = peers.get(pid);
+  if (!p) return;
+  if (p.pingTimer) clearInterval(p.pingTimer);
+  try { p.dc?.close(); } catch(e) {}
+  try { p.conn?.close(); } catch(e) {}
+  peers.delete(pid);
+  updatePeerListUI();
+}
+
+// ═══════════════════════════════════════════════════
+//  WEBRTC
+// ═══════════════════════════════════════════════════
+const rtcCfg = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
+
+function initiateWebRTC(targetId) {
+  const conn = new RTCPeerConnection(rtcCfg);
+  const peer = peers.get(targetId);
+  if (!peer) return;
+  peer.conn = conn;
+  const dc = conn.createDataChannel("p2p-llm", { ordered: true, maxRetransmits: 2 });
+  dc.binaryType = "arraybuffer";
+  setupDC(dc, targetId);
+  peer.dc = dc;
+  conn.onicecandidate = (e) => { if (e.candidate) publishSignal(targetId, { type: "ice", candidate: e.candidate }); };
+  conn.onconnectionstatechange = () => { if (conn.connectionState === "failed" || conn.connectionState === "disconnected") removePeer(targetId); };
+  conn.createOffer().then(o => conn.setLocalDescription(o)).then(() => {
+    publishSignal(targetId, { type: "offer", sdp: conn.localDescription });
+  }).catch(e => console.error('[RTC] Offer err:', e));
+}
+
+function handleWebRTCSignal(fromId, signal) {
+  let peer = peers.get(fromId);
+  if (signal.type === "offer") {
+    if (!peer) {
+      if (peers.size >= CONFIG.maxPeers) return;
+      peer = { deviceTier: "C", webgpu: false, memoryMB: 0, tps: 0, lastSeen: Date.now(), rtt: Infinity, conn: null, dc: null, pingTimer: null, lastPingSent: 0 };
+      peers.set(fromId, peer);
+    }
+    const conn = new RTCPeerConnection(rtcCfg);
+    peer.conn = conn;
+    conn.onicecandidate = (e) => { if (e.candidate) publishSignal(fromId, { type: "ice", candidate: e.candidate }); };
+    conn.ondatachannel = (e) => { e.channel.binaryType = "arraybuffer"; setupDC(e.channel, fromId); peer.dc = e.channel; };
+    conn.onconnectionstatechange = () => { if (conn.connectionState === "failed" || conn.connectionState === "disconnected") removePeer(fromId); };
+    conn.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+      .then(() => conn.createAnswer()).then(a => conn.setLocalDescription(a))
+      .then(() => publishSignal(fromId, { type: "answer", sdp: conn.localDescription }))
+      .catch(e => console.error('[RTC] Answer err:', e));
+  } else if (signal.type === "answer") {
+    peer?.conn?.setRemoteDescription(new RTCSessionDescription(signal.sdp)).catch(() => {});
+  } else if (signal.type === "ice") {
+    peer?.conn?.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+  }
+}
+
+function setupDC(dc, remoteId) {
+  dc.onopen = () => {
+    dc.send(encodeMsg(MSG.HELLO, 0, 0, { peerId, deviceTier, webgpu: hasWebGPU, tps: localTPS }));
+    const peer = peers.get(remoteId);
+    if (peer) {
+      peer.pingTimer = setInterval(() => {
+        if (dc.readyState === "open") { peer.lastPingSent = performance.now(); dc.send(encodeMsg(MSG.PING, 0, 0, null)); }
+      }, CONFIG.pingIntervalMs);
+    }
+    updatePeerListUI();
+  };
+  dc.onclose = () => removePeer(remoteId);
+  dc.onmessage = (evt) => { if (evt.data instanceof ArrayBuffer) handleBinMsg(remoteId, evt.data); };
+  dc.onerror = () => {};
+}
+
+async function handleBinMsg(fromId, buf) {
+  const m = decodeMsg(buf);
+  const peer = peers.get(fromId);
+  if (!peer) return;
+  switch(m.type) {
+    case MSG.HELLO:
+      if (m.payload) { peer.deviceTier = m.payload.deviceTier || peer.deviceTier; peer.webgpu = m.payload.webgpu || false; peer.tps = m.payload.tps || 0; }
+      updatePeerListUI(); break;
+    case MSG.PING:
+      if (peer.dc?.readyState === "open") peer.dc.send(encodeMsg(MSG.PONG, m.reqId, m.seq, null));
+      break;
+    case MSG.PONG:
+      if (peer.lastPingSent > 0) { peer.rtt = Math.round(performance.now() - peer.lastPingSent); peer.lastSeen = Date.now(); }
+      updatePeerListUI(); break;
+    case MSG.TOK_REQ:
+      if (engine && !isGenerating) {
+        try {
+          const res = await engine.chat.completions.create({
+            messages: [{ role: "system", content: "Continue naturally." }, { role: "user", content: m.payload?.text || "" }],
+            max_tokens: m.payload?.tokens || 4, temperature: 0.7, stream: false
+          });
+          const tok = res.choices[0]?.message?.content || "";
+          if (peer.dc?.readyState === "open") peer.dc.send(encodeMsg(MSG.TOK_RES, m.reqId, m.seq, { tokens: tok, tps: localTPS }));
+        } catch(e) {}
+      }
+      break;
+    case MSG.TOK_RES:
+      if (m.payload) { peer.tps = m.payload.tps || peer.tps; }
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  NETWORK SCORE & AUTO-SCALING
+// ═══════════════════════════════════════════════════
+function computeScore() {
+  let score = 0, totalRTT = 0, rttCount = 0;
+  for (const [, p] of peers) {
+    if (!p.dc || p.dc.readyState !== "open") continue;
+    if (p.rtt < CONFIG.maxAssistLatencyMs) score += 1;
+    if (p.deviceTier === "A") score += 1;
+    if (p.rtt < Infinity) { totalRTT += p.rtt; rttCount++; }
+  }
+  if (rttCount > 0 && (totalRTT / rttCount) > CONFIG.maxAssistLatencyMs) score -= 1;
+  return { score: Math.max(0, Math.min(6, score)), avgRTT: rttCount > 0 ? Math.round(totalRTT / rttCount) : null };
+}
+
+function selectTier(score) {
+  let best = 0;
+  for (let i = CONFIG.tiers.length - 1; i >= 0; i--) { if (score >= CONFIG.tiers[i].minScore) { best = i; break; } }
+  return best;
+}
+
+async function autoScale() {
+  const { score, avgRTT } = computeScore();
+  networkScore = score;
+  const newIdx = selectTier(score);
+  const now = Date.now();
+  if (newIdx !== currentTierIdx && (now - lastTierChange) > CONFIG.hysteresisMs) {
+    const dir = newIdx > currentTierIdx ? "Upgrading" : "Downgrading";
+    if (newIdx > currentTierIdx) {
+      switchModel(CONFIG.tiers[newIdx].model).then(() => { currentTierIdx = newIdx; lastTierChange = Date.now(); updateTierUI(); });
+    } else if (!isGenerating) {
+      currentTierIdx = newIdx; lastTierChange = now;
+      switchModel(CONFIG.tiers[newIdx].model);
+      updateTierUI();
+    }
+  }
+  updateScoreUI(score, avgRTT);
+}
+
+// ═══════════════════════════════════════════════════
+//  UI UPDATES
+// ═══════════════════════════════════════════════════
+function addMessageToUI(role, content, streaming = false) {
+  const el = document.getElementById('messages');
+  const msg = document.createElement('div');
+  msg.className = 'message';
+  const isUser = role === "user";
+  const tier = CONFIG.tiers[currentTierIdx];
+  msg.innerHTML = `
+    <div class="msg-avatar ${isUser ? 'user-av' : 'ai-av'}">${isUser ? '👤' : '🤖'}</div>
+    <div class="msg-body">
+      <div class="msg-header">${isUser ? 'You' : `AI · ${tier.name}`}</div>
+      <div class="msg-content">${streaming ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : (content || '')}</div>
+      <div class="msg-meta">${!isUser && !streaming ? `${tier.name} · ${tier.mode}` : ''}</div>
+    </div>`;
+  el.appendChild(msg);
+  el.scrollTop = el.scrollHeight;
+  return msg;
+}
+
+function updateTierUI() {
+  const t = CONFIG.tiers[currentTierIdx];
+  document.getElementById('chip-tier-text').textContent = `TIER: ${t.name.toUpperCase()}`;
+  document.getElementById('chip-mode-text').textContent = `MODE: ${t.mode.toUpperCase()}`;
+  const tc = { small:'var(--tier-small)', medium:'var(--tier-medium)', large:'var(--tier-large)' };
+  const mc = { local:'var(--mode-local)', assist:'var(--mode-assist)', 'assist+verify':'var(--mode-verify)' };
+  document.getElementById('chip-tier-dot').style.background = tc[t.name] || tc.small;
+  document.getElementById('chip-mode-dot').style.background = mc[t.mode] || mc.local;
+}
+
+function updatePeerListUI() {
+  const container = document.getElementById('peer-list');
+  let active = 0;
+  for (const [, p] of peers) if (p.dc?.readyState === "open") active++;
+  document.getElementById('chip-peers-text').textContent = `PEERS: ${active}`;
+  if (peers.size === 0) { container.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px 0;">No peers connected</div>'; return; }
+  let html = '';
+  for (const [pid, p] of peers) {
+    const connected = p.dc?.readyState === "open";
+    const dot = !connected ? 'dead' : (p.rtt < CONFIG.maxAssistLatencyMs ? 'online' : 'slow');
+    const tb = p.deviceTier === 'A' ? 'a' : p.deviceTier === 'B' ? 'b' : 'c';
+    html += `<div class="peer-item"><div class="peer-dot ${dot}"></div><span class="peer-id">${pid}</span><span class="peer-tier-badge tier-${tb}">${p.deviceTier}</span><span class="peer-rtt">${p.rtt < Infinity ? p.rtt+'ms' : '—'}</span></div>`;
+  }
+  container.innerHTML = html;
+}
+
+function updateRelayUI() {
+  let connected = 0, total = relayMap.size;
+  let html = '';
+  for (const [url, state] of relayMap) {
+    const dotClass = state.status === 'connected' ? 'ok' : state.status === 'connecting' ? 'connecting' : '';
+    const shortUrl = url.replace('wss://', '').replace('ws://', '');
+    html += `<div class="relay-item"><div class="relay-dot ${dotClass}"></div><span class="relay-name" title="${url}">${shortUrl}</span></div>`;
+    if (state.status === 'connected') connected++;
+  }
+  document.getElementById('relay-list').innerHTML = html;
+  document.getElementById('chip-relays-text').textContent = `RELAYS: ${connected}/${total}`;
+  const dot = document.getElementById('chip-relays-dot');
+  dot.style.background = connected === 0 ? 'var(--peer-dead)' : connected < 3 ? 'var(--peer-slow)' : 'var(--peer-online)';
+  if (connected > 0) dot.style.boxShadow = `0 0 6px ${connected < 3 ? 'var(--peer-slow)' : 'var(--peer-online)'}`;
+}
+
+function updateScoreUI(score, avgRTT) {
+  document.getElementById('chip-score-text').textContent = `SCORE: ${score}`;
+  document.getElementById('stat-score').textContent = score;
+  document.getElementById('stat-rtt').textContent = avgRTT !== null ? `${avgRTT}ms` : '—';
+  let s = '';
+  for (let i = 0; i < 6; i++) s += `<div class="score-segment ${i < score ? 'active' : ''} ${score >= 4 ? 'high' : ''}"></div>`;
+  document.getElementById('score-bar').innerHTML = s;
+}
+
+function updateSpeedChip() {
+  document.getElementById('chip-speed-text').textContent = `${localTPS} tok/s`;
+  document.getElementById('stat-tps-local').textContent = `${localTPS}`;
+  document.getElementById('stat-tps-eff').textContent = `${effectiveTPS}`;
+}
+
+function updateDeviceStats() {
+  document.getElementById('stat-device-tier').textContent = `Tier ${deviceTier}`;
+  document.getElementById('stat-webgpu').textContent = hasWebGPU ? '✅ Yes' : '❌ No';
+  document.getElementById('stat-memory').textContent = `${memoryMB}MB`;
+  document.getElementById('stat-peer-id').textContent = peerId;
+}
+
+function showModelProgress(show, name) {
+  const s = document.getElementById('model-progress-section');
+  if (show) { s.classList.add('active'); document.getElementById('model-name-display').textContent = name || ''; }
+  else s.classList.remove('active');
+}
+function updateModelProgress(pct, text) {
+  const b = document.getElementById('model-progress-bar');
+  const l = document.getElementById('model-progress-label');
+  if (b) b.style.width = `${pct}%`;
+  if (l) l.textContent = text || `${pct}%`;
+}
+function updateInitStatus(t) { const e = document.getElementById('init-status'); if (e) e.textContent = t; }
+function updateInitProgress(p) { const e = document.getElementById('init-progress-fill'); if (e) e.style.width = `${p}%`; }
+function hideInitOverlay() { const e = document.getElementById('init-overlay'); if (e) e.classList.add('hidden'); }
+
+// ═══════════════════════════════════════════════════
+//  INPUT + CLEANUP
+// ═══════════════════════════════════════════════════
 function setupInput() {
-  const inp = document.getElementById('chat-input');
-  if (inp.dataset.ready==='1') return;
-  inp.dataset.ready='1';
-  inp.disabled = false;
-  inp.addEventListener('keydown', e => {
-    if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); window.sendMessage(); }
-  });
-  inp.addEventListener('input', () => {
-    inp.style.height = 'auto';
-    inp.style.height = Math.min(inp.scrollHeight, 90)+'px';
-    // typing indicator broadcast opcional vía nostr (ligero, no persistente)
-    clearTimeout(typTO);
-    typTO = setTimeout(clearTyping, 2000);
-    const msgs = document.getElementById('chat-messages');
-    if (msgs) msgs.style.transform = 'none';
-  });
-}
-
-function clearTyping() { /* sin typing en nostr por simplicidad */ }
-
-// ── MOSTRAR NOMBRE ASIGNADO EN WELCOME ───────────────────────
-// Generamos un preview del nombre antes de conectar
-window.addEventListener('DOMContentLoaded', () => {
-  const previewName = randomName();
-  document.getElementById('assigned-name-display').textContent =
-    `Tu nombre: ${previewName} ${avatarFor(previewName)}`;
-});
-
-// ═══════════════════════════════════════════════════════════════
-//  THREE.JS BACKGROUND & VISUAL FX (igual al original)
-// ═══════════════════════════════════════════════════════════════
-
-let tiltX=0, tiltY=0, tiltTargetX=0, tiltTargetY=0;
-let calibratedBeta=null, calibratedGamma=null;
-let hasSensor=false, sensorsInit=false;
-
-function applyFallbackTilt(x,y){if(hasSensor)return;tiltTargetX=clamp(x,-8,8);tiltTargetY=clamp(y,-8,8);}
-function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
-
-function handleOrientation(e){
-  if(e.beta==null||e.gamma==null)return;hasSensor=true;
-  if(calibratedBeta===null){calibratedBeta=e.beta;calibratedGamma=e.gamma;}
-  calibratedBeta+=(e.beta-calibratedBeta)*0.01;calibratedGamma+=(e.gamma-calibratedGamma)*0.01;
-  let dx=e.gamma-calibratedGamma,dy=e.beta-calibratedBeta;
-  if(dx>180)dx-=360;else if(dx<-180)dx+=360;if(dy>180)dy-=360;else if(dy<-180)dy+=360;
-  tiltTargetX=clamp(dx/5,-8,8);tiltTargetY=clamp(dy/5,-8,8);
-}
-function handleMotion(e){
-  const acc=e.accelerationIncludingGravity;if(!acc)return;hasSensor=true;
-  tiltTargetX=clamp((acc.x||0)*1.2,-8,8);tiltTargetY=clamp((acc.y||0)*1.2,-8,8);
-}
-
-async function initSensors(){
-  if(sensorsInit)return;sensorsInit=true;
-  try{
-    if(typeof DeviceOrientationEvent!=='undefined'){
-      if(typeof DeviceOrientationEvent.requestPermission==='function'){
-        try{const p=await DeviceOrientationEvent.requestPermission();if(p==='granted')window.addEventListener('deviceorientation',handleOrientation,true);}catch{}
-      }else window.addEventListener('deviceorientation',handleOrientation,true);
-    }
-    if(typeof DeviceMotionEvent!=='undefined'){
-      if(typeof DeviceMotionEvent.requestPermission==='function'){
-        try{const p=await DeviceMotionEvent.requestPermission();if(p==='granted')window.addEventListener('devicemotion',handleMotion,true);}catch{}
-      }else window.addEventListener('devicemotion',handleMotion,true);
-    }
-  }catch{}
-}
-
-window.addEventListener('mousemove',e=>{if(hasSensor)return;tiltTargetX=((e.clientX/innerWidth)-.5)*5;tiltTargetY=((e.clientY/innerHeight)-.5)*5;});
-window.addEventListener('touchmove',e=>{if(hasSensor||!e.touches.length)return;tiltTargetX=((e.touches[0].clientX/innerWidth)-.5)*5;tiltTargetY=((e.touches[0].clientY/innerHeight)-.5)*5;},{passive:true});
-
-const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('three-canvas'),antialias:false,alpha:true});
-renderer.setClearColor(0x000000,0);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
-const scene=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,600);
-cam.position.set(0,4.8,18);cam.lookAt(0,4.5,0);
-
-const gridH=new THREE.GridHelper(80,35,0x1a4d00,0x0a2200);gridH.position.y=-6;scene.add(gridH);
-const gridH2=new THREE.GridHelper(80,35,0x002244,0x001122);gridH2.position.y=-6.1;scene.add(gridH2);
-
-const SPRING=0.006,DAMP=0.88,TILT_F=0.5;
-const shapes=[];
-const geometries=[new THREE.SphereGeometry(.22,7,7),new THREE.OctahedronGeometry(.28),new THREE.TetrahedronGeometry(.24)];
-const colors=['#ff6eb4','#b16bff','#ff9ed5','#ffd700','#6eb4ff','#44cc44','#88ff44'];
-
-for(let i=0;i<70;i++){
-  const g=geometries[i%geometries.length];
-  const col=colors[i%colors.length];
-  const m=new THREE.MeshBasicMaterial({color:new THREE.Color(col),transparent:true,opacity:.75,wireframe:i%5===0});
-  const mesh=new THREE.Mesh(g,m);
-  const ox=(Math.random()-.5)*44,oy=(Math.random()-.5)*26,oz=(Math.random()-.5)*28;
-  mesh.position.set(ox,oy,oz);
-  mesh.userData={ox,oy,oz,pvx:0,pvy:0,pvz:0,phase:Math.random()*Math.PI*2,baseScale:.7+Math.random()*.7,
-    rotSpeedX:(Math.random()-.5)*.04,rotSpeedY:(Math.random()-.5)*.04,rotSpeedZ:(Math.random()-.5)*.02};
-  scene.add(mesh);shapes.push(mesh);
-}
-
-const knot=new THREE.Mesh(new THREE.TorusKnotGeometry(3.5,.5,100,14,2,3),new THREE.MeshBasicMaterial({color:0x1a4d00,wireframe:true,transparent:true,opacity:.35}));
-knot.position.set(0,1,0);scene.add(knot);
-const knot2=new THREE.Mesh(new THREE.TorusKnotGeometry(2.5,.3,80,10,3,5),new THREE.MeshBasicMaterial({color:0x004422,wireframe:true,transparent:true,opacity:.28}));
-knot2.position.set(0,1,0);scene.add(knot2);
-const torus=new THREE.Mesh(new THREE.TorusGeometry(6,.7,8,46),new THREE.MeshBasicMaterial({color:0x224400,wireframe:true,transparent:true,opacity:.25}));
-torus.rotation.x=Math.PI/3;scene.add(torus);
-const torus2=new THREE.Mesh(new THREE.TorusGeometry(4,.4,6,36),new THREE.MeshBasicMaterial({color:0x003322,wireframe:true,transparent:true,opacity:.22}));
-torus2.rotation.x=-Math.PI/4;torus2.rotation.z=Math.PI/6;scene.add(torus2);
-const ico=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,1),new THREE.MeshBasicMaterial({color:0x336600,wireframe:true,transparent:true,opacity:.38}));
-ico.position.set(-8,2,-2);scene.add(ico);
-const oct=new THREE.Mesh(new THREE.OctahedronGeometry(1.8,1),new THREE.MeshBasicMaterial({color:0x004433,wireframe:true,transparent:true,opacity:.38}));
-oct.position.set(8,2,-2);scene.add(oct);
-
-const rings=[];
-for(let i=0;i<5;i++){
-  const r=new THREE.Mesh(new THREE.TorusGeometry(1,.05,4,40),new THREE.MeshBasicMaterial({color:new THREE.Color(colors[i]),transparent:true,opacity:0}));
-  r.userData={phase:i*Math.PI*2/5,speed:.8+Math.random()*.4};
-  r.position.set((Math.random()-.5)*20,(Math.random()-.5)*12,0);
-  scene.add(r);rings.push(r);
-}
-
-const stars3d=[];
-const starGeo=new THREE.OctahedronGeometry(.15,0);
-for(let i=0;i<30;i++){
-  const m=new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:.9});
-  const s=new THREE.Mesh(starGeo,m);
-  s.position.set((Math.random()-.5)*38,(Math.random()-.5)*22,(Math.random()-.5)*20);
-  s.userData={oy:s.position.y,phase:Math.random()*Math.PI*2,pvx:0,pvy:0,pvz:0,ox:s.position.x,oz:s.position.z};
-  scene.add(s);stars3d.push(s);
-}
-
-const burst=[];
-function triggerEntryAnimation(){
-  cam.position.z=80;
-  const fl=document.getElementById('flash-overlay');
-  fl.style.background='rgba(100,255,100,0.4)';
-  setTimeout(()=>{fl.style.background='rgba(255,110,180,0)';},150);
-  for(let i=0;i<80;i++){
-    const g=geometries[i%geometries.length];
-    const c=colors[i%colors.length];
-    const m=new THREE.MeshBasicMaterial({color:new THREE.Color(c),transparent:true,opacity:1});
-    const mesh=new THREE.Mesh(g.clone(),m);
-    mesh.position.set((Math.random()-.5)*2,(Math.random()-.5)*2,0);
-    const phi=Math.random()*Math.PI*2,theta=(Math.random()-.5)*Math.PI,spd=Math.random()*.55+.18;
-    mesh.userData={vel:new THREE.Vector3(Math.cos(phi)*Math.cos(theta)*spd,Math.sin(theta)*spd,Math.sin(phi)*Math.cos(theta)*spd*.3),
-      life:1,pvx:0,pvy:0,pvz:0,ox:0,oy:0,oz:0,phase:Math.random()*Math.PI*2,baseScale:1,
-      rotSpeedX:Math.random()*.15,rotSpeedY:Math.random()*.15,rotSpeedZ:Math.random()*.1};
-    scene.add(mesh);burst.push({mesh,active:true});
+  const input = document.getElementById('chat-input');
+  const btn = document.getElementById('send-btn');
+  function send() {
+    const t = input.value.trim();
+    if (!t || isGenerating || !engine) return;
+    input.value = ''; input.style.height = 'auto';
+    generateResponse(t);
   }
-  playEntrySound();
+  btn.addEventListener('click', send);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; });
 }
 
-function resize3(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
-resize3();window.addEventListener('resize',resize3);
-
-let t3=0;
-const camBasePos=new THREE.Vector3(0,1.2,20);
-const camCurrent=new THREE.Vector3(0,1.2,20);
-
-function animate3(){
-  requestAnimationFrame(animate3);t3+=.012;
-  tiltX+=(tiltTargetX-tiltX)*0.15;tiltY+=(tiltTargetY-tiltY)*0.15;
-  camCurrent.x+=(camBasePos.x+tiltX*15-camCurrent.x)*0.08;
-  camCurrent.y+=(camBasePos.y-tiltY*12-camCurrent.y)*0.08;
-  camCurrent.z+=(camBasePos.z-camCurrent.z)*0.04;
-  cam.position.copy(camCurrent);cam.lookAt(tiltX*3,4.5-tiltY*1.2,0);
-  shapes.forEach(s=>{
-    const d=s.userData;
-    d.pvx+=(d.ox-s.position.x)*SPRING;d.pvy+=(d.oy-s.position.y)*SPRING;d.pvz+=(d.oz-s.position.z)*SPRING;
-    d.pvx+=tiltX*TILT_F;d.pvy-=tiltY*TILT_F*0.5;
-    d.pvx*=DAMP;d.pvy*=DAMP;d.pvz*=DAMP;
-    s.position.x+=d.pvx;s.position.y+=d.pvy;s.position.z+=d.pvz;
-    s.rotation.x+=d.rotSpeedX+tiltY*0.02;s.rotation.y+=d.rotSpeedY+tiltX*0.02;s.rotation.z+=d.rotSpeedZ;
-    const sc=d.baseScale*(0.82+0.22*Math.sin(t3*2.2+d.phase));
-    s.scale.setScalar(sc);s.material.opacity=0.38+0.38*Math.sin(t3*1.5+d.phase);
-  });
-  stars3d.forEach(s=>{
-    const d=s.userData;
-    d.pvx+=(d.ox-s.position.x)*SPRING;d.pvy+=(d.oy-s.position.y)*SPRING*1.3;d.pvz+=(d.oz-s.position.z)*SPRING;
-    d.pvx+=tiltX*TILT_F*0.8;d.pvy-=tiltY*TILT_F*0.6;
-    d.pvx*=DAMP;d.pvy*=DAMP;d.pvz*=DAMP;
-    s.position.x+=d.pvx;s.position.y+=d.pvy;s.position.z+=d.pvz;
-    s.rotation.y+=.06;s.rotation.z+=.04;
-    s.material.opacity=0.5+0.5*Math.abs(Math.sin(t3*3+d.phase));
-  });
-  knot.rotation.x=t3*.05+tiltY*.08;knot.rotation.y=t3*.09+tiltX*.08;knot.rotation.z=t3*.03;
-  knot2.rotation.x=-t3*.07+tiltY*.06;knot2.rotation.y=-t3*.06-tiltX*.06;
-  torus.rotation.z=t3*.07;torus.rotation.y=t3*.04+tiltX*.05;
-  torus2.rotation.z=-t3*.06;torus2.rotation.x=t3*.05-tiltY*.04;
-  ico.rotation.y=t3*.12+tiltX*.07;ico.rotation.x=t3*.08+tiltY*.06;
-  oct.rotation.y=-t3*.1-tiltX*.07;oct.rotation.z=t3*.07;
-  rings.forEach(r=>{
-    const ph=r.userData.phase+t3*r.userData.speed;
-    const sc=1.5+2.5*Math.abs(Math.sin(ph));
-    r.scale.setScalar(sc);r.material.opacity=0.4*Math.abs(Math.sin(ph));
-    r.rotation.x+=.02;r.rotation.z+=.015;
-  });
-  gridH.position.z=(t3*.45)%2;gridH.position.x=tiltX*2;
-  for(let i=burst.length-1;i>=0;i--){
-    const b=burst[i];if(!b.active)continue;
-    const d=b.mesh.userData;
-    b.mesh.position.add(d.vel);d.vel.multiplyScalar(0.93);
-    b.mesh.rotation.x+=d.rotSpeedX;b.mesh.rotation.y+=d.rotSpeedY;
-    d.life-=0.016;b.mesh.material.opacity=Math.max(0,d.life);
-    if(d.life<=0){scene.remove(b.mesh);burst.splice(i,1);}
-  }
-  renderer.render(scene,cam);
-}
-animate3();
-
-function updateUIParallax(){
-  requestAnimationFrame(updateUIParallax);
-  const header=document.querySelector('.chat-header');
-  if(header)header.style.transform=`translateX(${tiltX*15}px)`;
-  const msgs=document.getElementById('chat-messages');
-  if(msgs&&document.activeElement!==document.getElementById('chat-input')){
-    msgs.style.transform=`translateX(${tiltX*12}px) translateY(${tiltY*10}px)`;
-  }
-}
-updateUIParallax();
-
-// ── CANVAS 2D FLOTANTE ────────────────────────────────────────
-const c3d=document.getElementById('msg3d');
-const ctx3=c3d.getContext('2d');
-const floaters=[];
-function resize3d(){c3d.width=innerWidth;c3d.height=innerHeight;}
-resize3d();window.addEventListener('resize',resize3d);
-
-function add3DText(txt,fromMe){
-  const f={txt:txt.length>18?txt.slice(0,18)+'...':txt,
-    x:fromMe?innerWidth-60:60,y:innerHeight-150,vy:-2.5,vx:fromMe?-1:1,
-    alpha:1,scale:1,fromMe,wobble:0,wobbleDir:1};
-  floaters.push(f);
-  setTimeout(()=>{const i=floaters.indexOf(f);if(i>-1)floaters.splice(i,1);},2200);
-}
-function animFloat(){
-  requestAnimationFrame(animFloat);ctx3.clearRect(0,0,c3d.width,c3d.height);
-  floaters.forEach(f=>{
-    f.y+=f.vy;f.x+=f.vx*.5;f.alpha-=.012;f.scale+=.008;
-    f.wobble+=0.18*f.wobbleDir;if(Math.abs(f.wobble)>8)f.wobbleDir*=-1;
-    if(f.alpha<=0)return;
-    ctx3.save();ctx3.globalAlpha=f.alpha;ctx3.translate(f.x,f.y);
-    ctx3.rotate(f.wobble*Math.PI/180);ctx3.scale(f.scale,f.scale);
-    ctx3.font='bold 16px Bangers,cursive';ctx3.textAlign=f.fromMe?'right':'left';
-    ctx3.shadowBlur=20;ctx3.shadowColor=f.fromMe?'#ff6eb4':'#b16bff';
-    ctx3.fillStyle=f.fromMe?'#ff6eb4':'#b16bff';
-    ctx3.fillText('🦌 '+f.txt,0,0);ctx3.restore();
-  });
-}
-animFloat();
-
-// ── AUDIO ────────────────────────────────────────────────────
-let audioCtx=null;
-function getACtx(){
-  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==='suspended')audioCtx.resume();
-  return audioCtx;
+function cleanupPeers() {
+  const now = Date.now();
+  for (const [pid, p] of peers) if (now - p.lastSeen > CONFIG.presenceTTLMs) removePeer(pid);
 }
 
-function playPuduMeow(pitch=1.0,style='normal'){
-  try{
-    const ac=getACtx();
-    const master=ac.createGain();
-    master.gain.setValueAtTime(0,ac.currentTime);
-    master.gain.linearRampToValueAtTime(0.32,ac.currentTime+0.04);
-    master.connect(ac.destination);
-    const carrier=ac.createOscillator();
-    carrier.type='triangle'; // más suave que sawtooth, más como ciervo
-    const base=280*pitch;
-    if(style==='normal'){
-      carrier.frequency.setValueAtTime(base*0.8,ac.currentTime);
-      carrier.frequency.linearRampToValueAtTime(base*1.8,ac.currentTime+0.2);
-      carrier.frequency.exponentialRampToValueAtTime(base*0.9,ac.currentTime+0.5);
-    }else if(style==='chirp'){
-      carrier.frequency.setValueAtTime(base*1.5,ac.currentTime);
-      carrier.frequency.exponentialRampToValueAtTime(base*2.2,ac.currentTime+0.07);
-      carrier.frequency.exponentialRampToValueAtTime(base*1.0,ac.currentTime+0.2);
-    }
-    const env=ac.createGain();
-    env.gain.setValueAtTime(0,ac.currentTime);env.gain.linearRampToValueAtTime(1,ac.currentTime+0.05);
-    env.gain.setValueAtTime(0.8,ac.currentTime+0.35);env.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.7);
-    carrier.connect(env);env.connect(master);
-    carrier.start();carrier.stop(ac.currentTime+0.75);
-    master.gain.setValueAtTime(master.gain.value,ac.currentTime+0.7);
-    master.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.75);
-  }catch{}
+// ═══════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════
+async function boot() {
+  console.log(`[P2P-LLM] Boot peerId=${peerId}`);
+  updateInitStatus("Detecting device…");
+  await classifyDevice();
+  updateScoreUI(0, null);
+  setupInput();
+
+  // Conectar relays en paralelo — no bloquea el boot
+  connectToRelays();
+  updateRelayUI();
+
+  updateInitStatus(`Loading model: ${CONFIG.defaultModel}`);
+  await initEngine(CONFIG.defaultModel);
+  updateTierUI();
+  hideInitOverlay();
+
+  // Esperar 2s para que algunos relays conecten y mostrar cuántos hay
+  await new Promise(r => setTimeout(r, 2000));
+  let connectedRelays = 0;
+  for (const [, s] of relayMap) if (s.status === 'connected') connectedRelays++;
+
+  addMessageToUI("assistant",
+    `🌐 **P2P-LLM initialized**\n\nModel: ${currentModelId}\nDevice: Tier ${deviceTier} · WebGPU: ${hasWebGPU ? 'yes ✅' : 'no ❌'}\nPeer ID: ${peerId}\n\nNostr relays: ${connectedRelays}/${CONFIG.nostrRelays.length} connected\nConnecting to peers…`
+  );
+
+  setInterval(() => publishPresence(),   CONFIG.presenceIntervalMs);
+  setInterval(() => cleanupPeers(),      CONFIG.presenceTTLMs);
+  setInterval(() => autoScale(),         CONFIG.scoreRecalcMs);
+  setInterval(() => updateRelayUI(),     2000);
 }
 
-function playEntrySound(){
-  try{
-    const ac=getACtx();
-    [[110,1],[164.8,1.5],[220,2],[329.6,2.5]].forEach(([f,d])=>{
-      const o=ac.createOscillator(),g=ac.createGain();
-      o.type='sawtooth';o.frequency.setValueAtTime(f,ac.currentTime);
-      g.gain.setValueAtTime(0,ac.currentTime);g.gain.linearRampToValueAtTime(0.22,ac.currentTime+0.04);
-      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
-      o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d+0.1);
-    });
-    setTimeout(()=>playPuduMeow(1.2,'normal'),200);
-    setTimeout(()=>playPuduMeow(1.6,'chirp'),600);
-  }catch{}
-}
-
-function playSendSound(){
-  try{
-    const ac=getACtx();
-    const o=ac.createOscillator(),g=ac.createGain();
-    o.type='sine';o.frequency.setValueAtTime(660,ac.currentTime);
-    o.frequency.exponentialRampToValueAtTime(990,ac.currentTime+0.12);
-    g.gain.setValueAtTime(0,ac.currentTime);g.gain.linearRampToValueAtTime(0.15,ac.currentTime+0.02);
-    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.2);
-    o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+0.25);
-    setTimeout(()=>playPuduMeow(1.1,'chirp'),80);
-  }catch{}
-}
-
-function playPuduReaction(){try{playPuduMeow(1.1+Math.random()*.4,'chirp');}catch{}}
-
-// ── FX VISUALES ───────────────────────────────────────────────
-function spawnRipple(x,y){
-  const r=document.createElement('div');r.className='ripple';
-  r.style.left=x+'px';r.style.top=y+'px';
-  document.body.appendChild(r);setTimeout(()=>r.remove(),900);
-}
-
-function spawnStars(x,y){
-  const emojis=['⭐','✨','🌟','💫','🌿','🦌','🍃','🔥','🫐'];
-  for(let i=0;i<7;i++){
-    const s=document.createElement('div');s.className='star-particle';
-    s.textContent=emojis[Math.floor(Math.random()*emojis.length)];
-    s.style.left=(x+(Math.random()-.5)*90)+'px';
-    s.style.top=(y+(Math.random()-.5)*50)+'px';
-    document.body.appendChild(s);setTimeout(()=>s.remove(),900);
-  }
-}
-
-// ── BOTÓN PUDÚ ────────────────────────────────────────────────
-document.getElementById('pudu-btn').addEventListener('click', e => {
-  try{getACtx();}catch{}
-  try{playPuduMeow(0.9+Math.random()*0.4,'normal');}catch{}
-  const x=e.clientX||innerWidth/2, y=e.clientY||innerHeight/2;
-  for(let i=0;i<4;i++)setTimeout(()=>spawnRipple(x,y),i*180);
-  spawnStars(x,y);
-  camCurrent.x+=(Math.random()-.5)*3;camCurrent.y+=(Math.random()-.5)*2;
-});
-document.getElementById('pudu-btn').addEventListener('touchstart', e=>{
-  e.preventDefault();
-  const t=e.touches[0];
-  try{getACtx();}catch{}
-  try{playPuduMeow(0.9+Math.random()*0.4,'normal');}catch{}
-  for(let i=0;i<4;i++)setTimeout(()=>spawnRipple(t.clientX,t.clientY),i*180);
-  spawnStars(t.clientX,t.clientY);
-},{passive:false});
-
-window.addEventListener('beforeunload',()=>{
-  try{
-    if(myName){
-      publishEvent({type:'presence-left',name:myName});
-    }
-  }catch{}
+boot().catch(err => {
+  updateInitStatus(`Boot failed: ${err.message}`);
 });
 </script>
 </body>
