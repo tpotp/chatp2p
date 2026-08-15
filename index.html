@@ -638,8 +638,18 @@ function createRoom(name){
 
 const ANIMALES=['Pudú','Huemul','Guiña','Vizcacha','Coipo','Chungungo','Puma','Zorro','Quique','Culpeo','Monito del Monte','Degú','Chinchilla','Peuco','Tricahue','Cóndor','Lobo de Mar','Nutria','Carpintero','Cachudito'];
 const PALABRAS_MAGICAS=['Camahueto','Pincoya','Trauco','Colo-Colo','Cherufe','Basilisco','Alicanto','Invunche','Fiura','Piuchén','Caleuche','Millalobo','Anchimallén','Guallipén','Carbunclo','Chonchón'];
-const GARABATOS=[{re:/\bw[ae3]o+n(a[sz]?)?\b/gi,r:'huemul'},{re:/\bhu[ea]v[oó]n(a[sz]?)?\b/gi,r:'cóndor'},{re:/\bctm\b/gi,r:'maqui'},{re:/\bconcha\s?tu?\s?madre?\b/gi,r:'murtilla'},{re:/\bculia+o\b/gi,r:'chilco'},{re:/\bcsm\b/gi,r:'coicopé'},{re:/\bmierda\b/gi,r:'maqui silvestre'},{re:/\bgil\b/gi,r:'güiña'},{re:/\bpic(o|u)\s+(tus?|su)\b/gi,r:'quillay'},{re:/\bándate\s+a\s+la\s+chucha\b/gi,r:'ándate al bosque'}];
-function filtrarGarabatos(t){for(const{re,r}of GARABATOS)t=t.replace(re,r);return t;}
+const PALABRAS_ANTIBULLY=['maqui gatito','pudú amoroso','hojita de canelo','murtilla brillante','coipo abrazable','zorro de algodón','güiña cariñosa','cóndor con bufanda','quillay mágico','abejita amable','rayito de sol','abrazo de bosque'];
+const GARABATOS=[
+  /\b(?:a?(?:w[eé3]|hue?)[oó0]n(?:a|ao|á|es|as|aos)?|huev[oó]n(?:a|es|as)?|we[áa]s?)\b/gi,
+  /\b(?:ctm|csm|conche(?:tu|su)?(?:madr[ea]|mare)|concha\s*(?:de|tu)?\s*madre)\b/gi,
+  /\b(?:culi[áa](?:o|os|a|as|do|dos|da|das)?|qlia[oa]s?|qlo|culiao)\b/gi,
+  /\b(?:mierda|chucha|putas?|put[oa]s?|pendej[oa]s?|gil(?:es)?|[áa]ndate\s+a\s+la\s+chucha)\b/gi,
+  /\b(?:idiot[ao]s?|imb[eé]cil(?:es)?|est[uú]pid[oa]s?|tont[oa]s?|tarad[oa]s?|pelotud[oa]s?|bolud[oa]s?|maric[oó]n(?:es)?|mong[oó]lic[oa]s?|ret(?:ard|ras)ad[oa]s?|subnormal(?:es)?|fracasad[oa]s?|in[uú]til(?:es)?|asqueros[oa]s?|maldit[oa]s?)\b/gi,
+  /\b(?:te\s+odio|nadie\s+te\s+quiere|eres\s+(?:una?\s+)?(?:basura|in[uú]til|asqueros[oa]))\b/gi,
+  /\b(?:m[aá]tate|mu[eé]rete|te\s+(?:voy\s+a\s+)?matar|ojal[aá]\s+te\s+mu[eé]ras|p[íi]c[ao]\s+(?:tus?|su)|ch[uú]pame(?:\s+el)?\s+p[íi]c[ao])\b/gi
+];
+function reemplazoAntibully(match){let hash=0;for(const char of match.toLowerCase())hash=(hash*31+char.charCodeAt(0))|0;return PALABRAS_ANTIBULLY[Math.abs(hash)%PALABRAS_ANTIBULLY.length];}
+function filtrarGarabatos(t){for(const re of GARABATOS)t=String(t).replace(re,reemplazoAntibully);return t;}
 function randomName(){return `${ANIMALES[Math.floor(Math.random()*ANIMALES.length)]} ${PALABRAS_MAGICAS[Math.floor(Math.random()*PALABRAS_MAGICAS.length)]}`;}
 const ANIMAL_EMOJIS={'Pudú':'🦌','Huemul':'🦌','Guiña':'🐱','Vizcacha':'🐭','Coipo':'🦦','Chungungo':'🦦','Puma':'🐆','Zorro':'🦊','Quique':'🦡','Culpeo':'🦊','Monito del Monte':'🐨','Degú':'🐭','Chinchilla':'🐹','Peuco':'🦅','Tricahue':'🦜','Cóndor':'🦅','Lobo de Mar':'🦭','Nutria':'🦦','Carpintero':'🐦','Cachudito':'🐦'};
 function avatarFor(name){return ANIMAL_EMOJIS[name?name.split(' ')[0]:'']||'🌿';}
