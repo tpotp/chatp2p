@@ -658,6 +658,11 @@ canvas{position:fixed;inset:0;z-index:0}
   border-top: 10px solid var(--primary);
 }
 
+
+/* UI Stability: Chat text and header never shifted by accelerometer */
+.chat-header, #chat-messages, .chat-input-area, #chat-screen, .chat-main {
+  transform: none !important;
+}
 </style>
 </head>
 <body>
@@ -912,9 +917,34 @@ function generateRoomName(){
   return `${adj[Math.floor(Math.random()*adj.length)]} ${base[Math.floor(Math.random()*base.length)]}`;
 }
 
+let myName=null,privKeyBytes=null,pubKeyHex="";
+let nostrMod=null,nostrSockets={},nostrDotEls={};
+let nostrSeen=new Set(),chatEntered=false,pickerMsgId=null;
+
 const MAX_PER_ROOM=15,MAX_PEERS=6;
+const CANONICAL_ROOM_ID='bosque-paraiso-pudu';
+const CANONICAL_ROOM_NAME='Paraíso Pudú';
 const rooms=new Map();
 let currentRoomId=null;
+
+function ensureCanonicalRoom(){
+  if(!rooms.has(CANONICAL_ROOM_ID)){
+    rooms.set(CANONICAL_ROOM_ID,{
+      roomId:CANONICAL_ROOM_ID,
+      roomName:CANONICAL_ROOM_NAME,
+      users:new Set(pubKeyHex?[pubKeyHex]:[]),
+      peers:new Map(),
+      msgArchive:[],
+      msgEls:{},
+      seenMsgIds:new Set(),
+      reactions:{},
+      typingPeers:new Set(),
+      typTO:null,
+      vsOffset:0
+    });
+  }
+}
+ensureCanonicalRoom();
 
 function roomStatus(room){const n=room.users.size;if(n>=MAX_PER_ROOM)return 'full';if(n>=MAX_PER_ROOM-3)return 'almost';return 'available';}
 function findBestRoom(){let best=null,bestCount=Infinity;for(const[id,r]of rooms){if(r.users.size<MAX_PER_ROOM&&r.users.size<bestCount){best=id;bestCount=r.users.size;}}return best;}
@@ -947,11 +977,9 @@ function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;
 
 const SIG_TTL=90,PEER_TIMEOUT=40000,ICE_BATCH_DELAY=200,HELLO_INTERVAL=25000,RECONNECT_MAX=5,DOM_MSG_LIMIT=60,MSG_ARCHIVE_KEEP=400,MAX_HOPS=3,GLOBAL_TAG="pudu-chat-bosque-v4";
 const ICE_SERVERS=[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"},{urls:"stun:stun2.l.google.com:19302"},{urls:"stun:stun.cloudflare.com:3478"},{urls:"stun:stun.relay.metered.ca:80"}];
-const RELAY_URLS=["wss://relay.damus.io","wss://nos.lol","wss://offchain.pub","wss://relay.nostr.band/all","wss://nostr.mom","wss://relay.snort.social"];
+const RELAY_URLS=["wss://nos.lol","wss://relay.nostr.band/all","wss://nostr.mom","wss://relay.primal.net","wss://purplerelay.com","wss://relay.damus.io"];
 
-let myName=null,privKeyBytes=null,pubKeyHex="";
-let nostrMod=null,nostrSockets={},nostrDotEls={};
-let nostrSeen=new Set(),chatEntered=false,pickerMsgId=null;
+
 
 const IDENTITY_KEY='pudu-identity-v1';
 async function generateKeypair(){
@@ -977,7 +1005,7 @@ function connectNostrRelay(url){
   function connect(){
     if(nostrSockets[url]&&nostrSockets[url].readyState<=1)return;
     const ws=new WebSocket(url);nostrSockets[url]=ws;
-    ws.onopen=()=>{dot.className='rdot ok';retryDelay=3000;const since=Math.floor(Date.now()/1000)-SIG_TTL*4;ws.send(JSON.stringify(["REQ","sig-sub",{kinds:[1],"#t":[GLOBAL_TAG],since}]));};
+    ws.onopen=()=>{dot.className='rdot ok';retryDelay=3000;const since=Math.floor(Date.now()/1000)-SIG_TTL*4;ws.send(JSON.stringify(["REQ","sig-sub",{kinds:[1],"#t":[GLOBAL_TAG],since}]));onRelayReady();};
     ws.onmessage=(e)=>{try{const msg=JSON.parse(e.data);if(msg[0]==="EVENT")handleNostrEvent(msg[2]);else if(msg[0]==="EOSE")onRelayReady();}catch(e){}};
     ws.onerror=()=>{dot.className='rdot fail';};
     ws.onclose=()=>{dot.className='rdot fail';nostrSockets[url]=null;setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,60000);};
@@ -988,7 +1016,7 @@ function connectNostrRelay(url){
 let relayReadyCalled=false;
 function onRelayReady(){
   if(relayReadyCalled)return;relayReadyCalled=true;updateStatus();
-  if(myName&&!discoveryDone){document.getElementById('connecting-text').textContent=`Hola, ${myName} 🦌 — buscando bosques...`;clearTimeout(discoveryTimer);discoveryTimer=setTimeout(finishDiscoveryAndEnter,2500);}
+  if(myName&&!discoveryDone){document.getElementById('connecting-text').textContent=`Hola, ${myName} 🦌 — entrando al bosque...`;clearTimeout(discoveryTimer);discoveryTimer=setTimeout(finishDiscoveryAndEnter,600);}
 }
 
 function handleNostrEvent(ev){
@@ -1011,6 +1039,37 @@ function handleNostrEvent(ev){
     case 'answer':if(data.to===pubKeyHex&&data.roomId)handleAnswer(data.roomId,fromPub,data.sdp);break;
     case 'candidate':if(data.to===pubKeyHex&&data.roomId)handleRemoteCandidate(data.roomId,fromPub,data.candidates);break;
     case 'bye':if(data.roomId)closePeer(data.roomId,fromPub,false);break;
+    case 'chat':{
+      if(!msgRoomId||!data.text||!fromPub)break;
+      let room=rooms.get(msgRoomId);
+      if(!room){ensureCanonicalRoom();room=rooms.get(msgRoomId);}
+      if(!room)break;
+      if(room.seenMsgIds.has(data.id))break;
+      room.seenMsgIds.add(data.id);
+      room.users.add(fromPub);
+      const text=filtrarGarabatos(String(data.text).slice(0,2000));
+      const name=data.name||fromPub.slice(0,8);
+      if(msgRoomId===currentRoomId){
+        addMsgToVS(msgRoomId,data.id,name,text,false,data.ts||Date.now());
+        try{add3DText(text,false);}catch(e){}
+        try{playMsgReceive();}catch(e){}
+      }
+      renderRoomSidebar();
+      break;
+    }
+    case 'pudu-reply':{
+      if(!msgRoomId||!data.text)break;
+      let room=rooms.get(msgRoomId);
+      if(!room){ensureCanonicalRoom();room=rooms.get(msgRoomId);}
+      if(!room)break;
+      if(room.seenMsgIds.has(data.id))break;
+      room.seenMsgIds.add(data.id);
+      const replyText=filtrarGarabatos(String(data.text).slice(0,2000));
+      if(msgRoomId===currentRoomId){
+        triggerPuduSpeak3D(replyText,data.replyToPrompt||'');
+      }
+      break;
+    }
   }
 }
 
@@ -1525,6 +1584,16 @@ function invokePudu(roomId, triggerId, prompt) {
     };
     room.seenMsgIds.add(replyId);
     broadcastP2P(roomId, p2pMsg);
+
+    signAndPublish({
+      type: "pudu-reply",
+      id: replyId,
+      roomId,
+      from: pubKeyHex,
+      text: reply,
+      replyToPrompt: prompt,
+      ts: Date.now()
+    });
     
     triggerPuduSpeak3D(reply, prompt);
   });
@@ -1617,11 +1686,25 @@ window.sendMessage=function(){
   const inp=document.getElementById('chat-input');let txt=inp.value.trim();if(!txt)return;
   txt=filtrarGarabatos(txt);const msgId=uid(),room=rooms.get(currentRoomId);if(!room)return;
   const msg={type:'chat',id:msgId,roomId:currentRoomId,senderId:pubKeyHex,ts:Date.now(),hops:0,payload:{text:txt,name:myName}};
-  room.seenMsgIds.add(msgId);const sent=broadcastP2P(currentRoomId,msg);
+  room.seenMsgIds.add(msgId);
+  
+  // 1. Send via WebRTC P2P DataChannels
+  const sent=broadcastP2P(currentRoomId,msg);
+
+  // 2. Also publish via Nostr Mesh Relay (instant delivery across cellular/NAT and connecting peers)
+  signAndPublish({
+    type:'chat',
+    id:msgId,
+    roomId:currentRoomId,
+    from:pubKeyHex,
+    name:myName,
+    text:txt,
+    ts:Date.now()
+  });
+
   addMsgToVS(currentRoomId,msgId,myName,txt,true,Date.now());
   try{add3DText(txt,true);spawnStars(innerWidth-80,innerHeight-80);spawnRipple(innerWidth-80,innerHeight-80);playSendSound();}catch(e){}
   if(mentionsPudu(txt))setTimeout(()=>invokePudu(currentRoomId,msgId,txt),220);
-  if(sent===0)addSystemMsgVS(currentRoomId,mentionsPudu(txt)?'🦌 No hay peers P2P ahora, pero puedes conversar igual con el pudú.':'⚠️ Sin peers P2P. Intenta nuevamente.');
   inp.value='';inp.style.height='auto';
 };
 
@@ -1635,8 +1718,13 @@ function setupInput(){
 let discoveryDone=false,discoveryTimer=null;
 function finishDiscoveryAndEnter(){
   if(discoveryDone)return;discoveryDone=true;clearTimeout(discoveryTimer);
-  const best=findBestRoom();if(best){currentRoomId=best;rooms.get(best).users.add(pubKeyHex);}else{const newId=createRoom();rooms.get(newId).users.add(pubKeyHex);currentRoomId=newId;}
-  signAndPublish({type:'hello',roomId:currentRoomId,roomName:rooms.get(currentRoomId).roomName,from:pubKeyHex,name:myName,ts:Date.now()});enterChatScreen();
+  ensureCanonicalRoom();
+  const best=findBestRoom()||CANONICAL_ROOM_ID;
+  currentRoomId=best;
+  const r=rooms.get(best);
+  if(r)r.users.add(pubKeyHex);
+  signAndPublish({type:'hello',roomId:currentRoomId,roomName:(r&&r.roomName)||CANONICAL_ROOM_NAME,from:pubKeyHex,name:myName,ts:Date.now()});
+  enterChatScreen();
 }
 
 window.enterChat=async function(){
@@ -1659,7 +1747,7 @@ window.enterChat=async function(){
   RELAY_URLS.forEach(url=>connectNostrRelay(url));
   if(relayReadyCalled&&!discoveryDone){document.getElementById('connecting-text').textContent='Buscando bosques...';clearTimeout(discoveryTimer);discoveryTimer=setTimeout(finishDiscoveryAndEnter,2500);}
   setInterval(()=>{if(myName&&currentRoomId){const room=rooms.get(currentRoomId);setTimeout(()=>signAndPublish({type:'hello',roomId:currentRoomId,roomName:(room&&room.roomName),from:pubKeyHex,name:myName,ts:Date.now()}),Math.random()*3000);}},HELLO_INTERVAL);
-  setTimeout(()=>{if(!chatEntered&&!discoveryDone)finishDiscoveryAndEnter();},8000);
+  setTimeout(()=>{if(!chatEntered&&!discoveryDone)finishDiscoveryAndEnter();},2500);
 };
 
 function enterChatScreen(){
@@ -3236,7 +3324,10 @@ function triggerEntryAnimation(){
 }
 
 let lastParallaxFrame=0;
-function updateUIParallax(ts){requestAnimationFrame(updateUIParallax);if(ts-lastParallaxFrame<33)return;lastParallaxFrame=ts;const header=document.querySelector('.chat-header');if(header)header.style.transform=`translateX(${tiltX*15}px)`;if(document.activeElement!==document.getElementById('chat-input')){const msgs=document.getElementById('chat-messages');if(msgs)msgs.style.transform=`translateX(${tiltX*12}px) translateY(${tiltY*10}px)`;}}
+function updateUIParallax(ts){
+  requestAnimationFrame(updateUIParallax);
+  // Sensor tilt strictly transforms 3D background shapes and camera; NEVER the chat UI DOM elements.
+}
 requestAnimationFrame(updateUIParallax);
 
 function animate3(ts){
