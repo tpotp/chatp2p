@@ -1137,6 +1137,49 @@ const PUDU_MEMORY_BY_ROOM=new Map();
 const PUDU_MEMORY_LIMIT=16;
 const PUDU_MEMORY_MAX_AGE=6*60*60*1000;
 
+function cleanPuduText(text, max = 160) {
+  return filtrarGarabatos(String(text || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim()).slice(0, max);
+}
+
+function getPuduMemory(roomId) {
+  let memory = PUDU_MEMORY_BY_ROOM.get(roomId);
+  if (!memory) {
+    memory = new Map();
+    PUDU_MEMORY_BY_ROOM.set(roomId, memory);
+  }
+  const oldest = Date.now() - PUDU_MEMORY_MAX_AGE;
+  for (const [id, entry] of memory) {
+    if (entry.ts < oldest) memory.delete(id);
+  }
+  return memory;
+}
+
+function rememberPuduShard(roomId, id, summary, ts = Date.now()) {
+  const clean = cleanPuduText(summary);
+  if (!clean) return;
+  const memory = getPuduMemory(roomId);
+  memory.set(id, { summary: clean, ts: Number(ts) || Date.now() });
+  if (memory.size > PUDU_MEMORY_LIMIT) {
+    const oldest = [...memory.entries()].sort((a, b) => a[1].ts - b[1].ts).slice(0, memory.size - PUDU_MEMORY_LIMIT);
+    for (const [key] of oldest) memory.delete(key);
+  }
+}
+
+function sharePuduMemory(roomId, triggerId, prompt) {
+  const summary = cleanPuduText(String(prompt || "").replace(PUDU_MENTION_RE, " ").trim());
+  if (!summary) return;
+  const id = `pudu-memory-${triggerId}`, room = rooms.get(roomId);
+  if (!room) return;
+  rememberPuduShard(roomId, id, summary);
+  room.seenMsgIds.add(id);
+  broadcastP2P(roomId, { type: "pudu-memory", id, roomId, senderId: pubKeyHex, ts: Date.now(), hops: 0, payload: { summary } });
+}
+
+function getPuduContext(roomId) {
+  return [...getPuduMemory(roomId).values()].sort((a, b) => b.ts - a.ts).slice(0, 6).reverse().map(entry => `- ${entry.summary}`).join("\n");
+}
+
+
 window.toggleHudExpanded = function() {
   const h = document.getElementById("hud-log-history");
   const btn = document.getElementById("hud-toggle-btn");
@@ -1461,87 +1504,10 @@ function speakPuduVoice(text) {
   }
 }
 
-async function triggerPuduSpeak3D(replyText, userPrompt = "") {
-  puduHUD.log(`📥 Mensaje recibido por el Pudú: "${userPrompt.slice(0, 35)}..."`, "CONSOLA");
-  puduHUD.log(`✨ El Pudú entra físicamente a hablar desde su boca...`, "PUDÚ 3D");
 
-  if (puduBrain.isAngry()) {
-    addSystemMsgVS(currentRoomId, `🦌 ${puduBrain.angryReason} · ${puduBrain.getAngryCooldownText()}`);
-    return;
-  }
-
-  if (!pudu3dLoaded) {
-    await initPudu3D();
-    let t = 0; while (!pudu3dLoaded && t < 60) { await new Promise(r => setTimeout(r, 150)); t++; }
-    if (!pudu3dLoaded) return;
-  }
-
-  puduBusy = true;
-  puduBrain.visitCount++; puduBrain._saveMemory();
-
-  const overlay = document.getElementById("pudu3d-overlay");
-  const bubble = document.getElementById("pudu3d-speech-bubble");
-  const speechTextEl = document.getElementById("pudu3d-speech-text");
-  const vignette = document.getElementById("pudu3d-vignette");
-  const caption = document.getElementById("pudu3d-caption");
-  if (caption) caption.style.display = "none";
-
-  if (!overlay || !pudu3dModel) { puduBusy = false; return; }
-
-  puduBeingPushed = false; puduReturnHome = false;
-  puduPhysVx = 0; puduPhysVy = 0; puduPhysVz = 0;
-  nyanTrailActive = false;
-  nyanParticles.forEach(p => pudu3dScene.remove(p)); nyanParticles = [];
-  emotionParticles.forEach(p => pudu3dScene.remove(p)); emotionParticles = [];
-
-  puduBrain.state = "arriving"; puduBrain.stateTime = 0;
-  puduBrain.earMode = "alert"; puduBrain.mouthShape = "open";
-
-  pudu3dModel.rotation.set(0, 0, 0);
-  pudu3dModel.position.set(0, -0.2, 0);
-  overlay.style.display = "block";
-  pudu3dRunning = true; pudu3dClock.start(); runPudu3DLoop();
-  pudu3dCamera.position.set(0, 1.8, 7); pudu3dCamera.lookAt(0, 1, 0);
-
-  // Llegada cinemática
-  pudu3dModel.position.set(0, -0.2, -24);
-  await animarAcercarse(pudu3dModel);
-  pudu3dModel._baseY = -0.2; puduHomeX = 0; puduHomeY = -0.2; puduHomeZ = 0;
-
-  // Fase de habla
-  puduSpeakingActive = true;
-  puduBrain.state = "talking";
-  puduBrain.stateTime = 0;
-  puduBrain.earMode = "alert";
-
-  if (speechTextEl) speechTextEl.textContent = replyText;
-  if (bubble) bubble.classList.add("active");
-  updatePuduSpeechBubblePos();
-  animarOpacity(vignette, 0, 0.6, 400);
-
-  speakPuduVoice(replyText);
-  try { playPuduMeow(1.2, "chirp"); } catch(e) {}
-
-  const speechDur = Math.max(5000, Math.min(14000, replyText.length * 75 + 2500));
-  await new Promise(r => setTimeout(r, speechDur));
-
-  puduSpeakingActive = false;
-  puduBrain.mouthShape = "happy";
-  puduBrain.earMode = "alert";
-  if (bubble) bubble.classList.remove("active");
-  try { playPuduMeow(1.4, "purr"); } catch(e) {}
-
-  await new Promise(r => setTimeout(r, 2200));
-
-  puduBrain.state = "leaving";
-  await animarSalir(pudu3dModel);
-  await animarOpacity(vignette, 0.6, 0, 400);
-
-  puduFinishCinematic();
-  if (caption) caption.style.display = "";
-}
 
 function invokePudu(roomId, triggerId, prompt) {
+  console.log("%c[PUDÚ_AI] 📥 Mensaje recibido por el Pudú:", "color:#00e5ff;font-weight:bold;font-size:13px", prompt);
   const room = rooms.get(roomId); if (!room) return;
   try { puduBrain.onChatMessage(); puduBrain.state = "curious"; puduBrain.stateTime = 0; puduBrain.stateJustChanged = true; } catch(e) {}
   sharePuduMemory(roomId, triggerId, prompt);
@@ -2796,7 +2762,7 @@ function easeIn(t){return t*t*t;}
 function animarOpacity(el,from,to,dur){return new Promise(r=>{const s=performance.now();function step(n){const p=Math.min((n-s)/dur,1);el.style.opacity=lerp(from,to,easeInOut(p));if(p<1)requestAnimationFrame(step);else r();}requestAnimationFrame(step);});}
 
 // Arrival animations (pick random)
-function animarAcercarse(model){return new Promise(r=>{const dur=2800,start=performance.now();model._baseY=-0.2;function step(now){const p=Math.min((now-start)/dur,1);const rp=easeOut(p);model.position.z=lerp(-24,2.5,rp);model.position.y=-0.2+Math.abs(Math.sin(rp*Math.PI*10))*0.18;model.position.x=Math.sin(rp*Math.PI*5)*0.12;model.rotation.y=Math.sin(rp*Math.PI)*0.28;if(p<1)requestAnimationFrame(step);else{model.position.set(0,-0.2,2.5);r();}}requestAnimationFrame(step);});}
+function animarAcercarse(model){return new Promise(r=>{const dur=1600,start=performance.now();model._baseY=-0.2;function step(now){const p=Math.min((now-start)/dur,1);const rp=easeOut(p);model.position.z=lerp(-24,2.5,rp);model.position.y=-0.2+Math.abs(Math.sin(rp*Math.PI*10))*0.18;model.position.x=Math.sin(rp*Math.PI*5)*0.12;model.rotation.y=Math.sin(rp*Math.PI)*0.28;if(p<1)requestAnimationFrame(step);else{model.position.set(0,-0.2,2.5);r();}}requestAnimationFrame(step);});}
 function animarLlegarDesde(model,fromX){return new Promise(r=>{const dur=1600,start=performance.now();model._baseY=-0.2;const dx=(Math.random()-0.5)*1.2;function step(now){const p=Math.min((now-start)/dur,1);model.position.x=lerp(fromX,dx,easeOut(p));model.position.y=-0.2+Math.abs(Math.sin(p*Math.PI*10))*0.22;if(p<1)requestAnimationFrame(step);else{model.position.x=dx;model.position.y=-0.2;r();}}requestAnimationFrame(step);});}
 function animarNyanLlegar(model){return new Promise(r=>{const dur=1800,start=performance.now();model.position.set(-13,2.0,0);model._baseY=0.8;nyanTrailActive=true;const dx=(Math.random()-0.5)*1.2;function step(now){const p=Math.min((now-start)/dur,1);model.position.x=lerp(-13,dx,easeOut(p));model.position.y=2.0+Math.sin(p*Math.PI*3)*0.5-easeOut(p)*1.2;if(p<1)requestAnimationFrame(step);else{nyanTrailActive=false;model.position.y=0.8;model.position.x=dx;r();}}requestAnimationFrame(step);});}
 function animarCaer(model){return new Promise(r=>{const dur=1600,start=performance.now();model._baseY=-0.2;function step(now){const p=Math.min((now-start)/dur,1);if(p<0.65){const fp=p/0.65;model.position.y=lerp(14,-0.2,easeIn(fp));}else{const bp=(p-0.65)/0.35;model.position.y=-0.2+Math.sin(bp*Math.PI)*0.6*(1-bp*0.65);}if(p<1)requestAnimationFrame(step);else{model.position.y=-0.2;r();}}requestAnimationFrame(step);});}
@@ -2841,6 +2807,91 @@ function puduFinishCinematic(){
   if(butterflyMesh&&butterflyMesh.parent)pudu3dScene.remove(butterflyMesh);
   schedulePudu();
 }
+
+async function triggerPuduSpeak3D(replyText, userPrompt = "") {
+  console.log("%c[PUDÚ_3D] ✨ Entrando físicamente a hablar desde la boca...", "color:#ffd700;font-weight:bold;font-size:14px", { userPrompt, replyText });
+  console.log("%c[PUDÚ_3D] 🗣️ Hablando desde la boca:", "color:#b16bff;font-weight:bold;font-size:14px", replyText);
+  puduHUD.log(`📥 Mensaje recibido por el Pudú: "${userPrompt.slice(0, 35)}..."`, "CONSOLA");
+  puduHUD.log(`✨ El Pudú entra físicamente a hablar desde su boca...`, "PUDÚ 3D");
+
+  if (puduBrain.isAngry()) {
+    addSystemMsgVS(currentRoomId, `🦌 ${puduBrain.angryReason} · ${puduBrain.getAngryCooldownText()}`);
+    return;
+  }
+
+  if (puduSchedulerTO) clearTimeout(puduSchedulerTO);
+
+  if (!pudu3dLoaded) {
+    await initPudu3D();
+    let t = 0; while (!pudu3dLoaded && t < 60) { await new Promise(r => setTimeout(r, 100)); t++; }
+    if (!pudu3dLoaded) return;
+  }
+
+  puduBusy = true;
+  puduBrain.visitCount++; puduBrain._saveMemory();
+
+  const overlay = document.getElementById("pudu3d-overlay");
+  const bubble = document.getElementById("pudu3d-speech-bubble");
+  const speechTextEl = document.getElementById("pudu3d-speech-text");
+  const vignette = document.getElementById("pudu3d-vignette");
+  const caption = document.getElementById("pudu3d-caption");
+  if (caption) caption.style.display = "none";
+
+  if (!overlay || !pudu3dModel) { puduBusy = false; return; }
+
+  puduBeingPushed = false; puduReturnHome = false;
+  puduPhysVx = 0; puduPhysVy = 0; puduPhysVz = 0;
+  nyanTrailActive = false;
+  nyanParticles.forEach(p => pudu3dScene.remove(p)); nyanParticles = [];
+  emotionParticles.forEach(p => pudu3dScene.remove(p)); emotionParticles = [];
+
+  puduBrain.state = "arriving"; puduBrain.stateTime = 0;
+  puduBrain.earMode = "alert"; puduBrain.mouthShape = "open";
+
+  pudu3dModel.rotation.set(0, 0, 0);
+  pudu3dModel.position.set(0, -0.2, 0);
+  overlay.style.display = "block";
+  pudu3dRunning = true; pudu3dClock.start(); runPudu3DLoop();
+  pudu3dCamera.position.set(0, 1.8, 7); pudu3dCamera.lookAt(0, 1, 0);
+
+  // Llegada cinemática
+  pudu3dModel.position.set(0, -0.2, -24);
+  await animarAcercarse(pudu3dModel);
+  pudu3dModel._baseY = -0.2; puduHomeX = 0; puduHomeY = -0.2; puduHomeZ = 0;
+
+  // Fase de habla
+  puduSpeakingActive = true;
+  puduBrain.state = "talking";
+  puduBrain.stateTime = 0;
+  puduBrain.earMode = "alert";
+
+  if (speechTextEl) speechTextEl.textContent = replyText;
+  if (bubble) bubble.classList.add("active");
+  updatePuduSpeechBubblePos();
+  animarOpacity(vignette, 0, 0.6, 400);
+
+  speakPuduVoice(replyText);
+  try { playPuduMeow(1.2, "chirp"); } catch(e) {}
+
+  const speechDur = Math.max(4500, Math.min(12000, replyText.length * 70 + 2000));
+  await new Promise(r => setTimeout(r, speechDur));
+
+  puduSpeakingActive = false;
+  puduBrain.mouthShape = "happy";
+  puduBrain.earMode = "alert";
+  if (bubble) bubble.classList.remove("active");
+  try { playPuduMeow(1.4, "purr"); } catch(e) {}
+
+  await new Promise(r => setTimeout(r, 1800));
+
+  puduBrain.state = "leaving";
+  await animarSalir(pudu3dModel);
+  await animarOpacity(vignette, 0.6, 0, 400);
+
+  puduFinishCinematic();
+  if (caption) caption.style.display = "";
+}
+
 
 async function showPuduCinematic(){
   try {
