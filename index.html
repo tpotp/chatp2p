@@ -1282,8 +1282,6 @@ function solveMathInSpanish(prompt) {
   let raw = String(prompt).toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/@pudu/gi, "")
-    .replace(/\b(pudu|pudú|por favor|dime|sabes|oye|amigo|amiguito|eh|calcula|resolver|sacar)\b/gi, " ")
-    .replace(/\s+/g, " ")
     .trim();
 
   const SPANISH_NUMS = {
@@ -1299,81 +1297,42 @@ function solveMathInSpanish(prompt) {
     "novecientos": 900, "mil": 1000
   };
 
-  function parseSpanishNumber(phrase) {
-    if (!phrase) return null;
-    phrase = phrase.trim();
-    if (/^\d+(\.\d+)?$/.test(phrase)) return parseFloat(phrase);
-    const words = phrase.split(/\s+/).filter(w => w && w !== "y");
-    if (!words.length) return null;
-    let total = 0, current = 0;
-    for (const w of words) {
-      if (SPANISH_NUMS[w] !== undefined) {
-        const val = SPANISH_NUMS[w];
-        if (val === 1000) {
-          current = (current === 0 ? 1 : current) * 1000;
-          total += current;
-          current = 0;
-        } else if (val >= 100) {
-          current += val;
-        } else {
-          current += val;
-        }
-      } else {
-        return null;
-      }
-    }
-    total += current;
-    return total;
-  }
-
-  // Suma
-  const addMatch = raw.match(/(?:cuanto\s+es\s+)?(?:la\s+suma\s+de\s+)?([a-z0-9\s]+?)\s+(?:mas|\+|\bsuma(?:\s+con|\s+a)?)\s+([a-z0-9\s]+)/);
-  if (addMatch) {
-    const a = parseSpanishNumber(addMatch[1]), b = parseSpanishNumber(addMatch[2]);
-    if (a !== null && b !== null) {
-      const res = a + b;
-      return `¡Es ${res} amiguito ichipi! 🌿 ¡Sumé las hojitas de maqui y son ${res} exactas! ✨`;
-    }
-  }
-
-  // Resta
-  const subMatch = raw.match(/(?:cuanto\s+es\s+)?([a-z0-9\s]+?)\s+(?:menos|\-|\bresta\b)\s+([a-z0-9\s]+)/);
-  if (subMatch) {
-    const a = parseSpanishNumber(subMatch[1]), b = parseSpanishNumber(subMatch[2]);
-    if (a !== null && b !== null) {
-      const res = a - b;
-      return `¡Es ${res} amiguito ichipi! 🌿 ¡Le quité las ramitas y me quedaron ${res}! ✨`;
-    }
-  }
-
-  // Multiplicación
-  const mulMatch = raw.match(/(?:cuanto\s+es\s+)?([a-z0-9\s]+?)\s+(?:por|\*|\bx\b|multiplicado\s+por)\s+([a-z0-9\s]+)/);
-  if (mulMatch) {
-    const a = parseSpanishNumber(mulMatch[1]), b = parseSpanishNumber(mulMatch[2]);
-    if (a !== null && b !== null) {
-      const res = a * b;
-      return `¡Es ${res} amiguito ichipi! 🌿 ¡Multipliqué las bayas de maqui y son ${res}! ✨`;
-    }
-  }
-
-  // División
-  const divMatch = raw.match(/(?:cuanto\s+es\s+)?([a-z0-9\s]+?)\s+(?:dividido\s+(?:en|por|entre)|entre|\/)\s+([a-z0-9\s]+)/);
-  if (divMatch) {
-    const a = parseSpanishNumber(divMatch[1]), b = parseSpanishNumber(divMatch[2]);
-    if (a !== null && b !== null && b !== 0) {
-      const res = Number.isInteger(a / b) ? (a / b) : (a / b).toFixed(2);
-      return `¡Es ${res} amiguito ichipi! 🌿 ¡Repartí todo entre los pudúes y da ${res}! ✨`;
-    }
-  }
-
-  // Raíz cuadrada
-  const sqrtMatch = raw.match(/(?:cuanto\s+es\s+)?(?:la\s+)?raiz(?:\s+cuadrada)?\s+de\s+([a-z0-9\s]+)/);
+  // Raiz cuadrada
+  const sqrtMatch = raw.match(/(?:raiz\s+cuadrada\s+de|raiz\s+de)\s+([a-z0-9\s]+)/);
   if (sqrtMatch) {
-    const a = parseSpanishNumber(sqrtMatch[1]);
-    if (a !== null && a >= 0) {
-      const res = Number.isInteger(Math.sqrt(a)) ? Math.sqrt(a) : Math.sqrt(a).toFixed(2);
-      return `¡Es ${res} amiguito ichipi! 🌿 ¡La raíz profunda del canelo da ${res}! ✨`;
+    const valStr = sqrtMatch[1].trim();
+    let val = SPANISH_NUMS[valStr] !== undefined ? SPANISH_NUMS[valStr] : parseFloat(valStr);
+    if (!isNaN(val) && val >= 0) {
+      const res = Number.isInteger(Math.sqrt(val)) ? Math.sqrt(val) : Number(Math.sqrt(val).toFixed(2));
+      return "¡Es " + res + " amiguito ichipi! 🌿 ¡La raíz profunda del canelo da " + res + "! ✨";
     }
+  }
+
+  // Chained arithmetic expression parser
+  let expr = raw;
+  expr = expr.replace(/\bcuanto\s+es\b|\bcalcula\b|\bpor\s+favor\b|\bdime\b|\bde\b|\bresultado\b/gi, " ");
+  expr = expr.replace(/\bmas\b|\bsuma\b|\by\b/gi, "+");
+  expr = expr.replace(/\bmenos\b|\bresta\b/gi, "-");
+  expr = expr.replace(/\bmultiplicado\s+por\b|\bpor\b|\bx\b/gi, "*");
+  expr = expr.replace(/\bdividido\s+(?:en|por|entre)\b|\bdividido\b|\bentre\b/gi, "/");
+
+  const numKeys = Object.keys(SPANISH_NUMS).sort((a, b) => b.length - a.length);
+  for (const k of numKeys) {
+    const reg = new RegExp("\\b" + k + "\\b", "gi");
+    expr = expr.replace(reg, SPANISH_NUMS[k]);
+  }
+
+  expr = expr.replace(/[^0-9\+\-\*/\(\)\.\s]/g, "").trim();
+  if (expr && /\d/.test(expr) && /[\+\-\*/]/.test(expr)) {
+    try {
+      if (/^[0-9\+\-\*/\(\)\.\s]+$/.test(expr)) {
+        const val = Function("'use strict'; return (" + expr + ")")();
+        if (typeof val === "number" && !isNaN(val) && isFinite(val)) {
+          const res = Number.isInteger(val) ? val : Number(val.toFixed(2));
+          return "¡Es " + res + " amiguito ichipi! 🌿 ¡Sumé las hojitas de maqui y son " + res + " exactas! ✨";
+        }
+      }
+    } catch(e) {}
   }
 
   return null;
@@ -1383,25 +1342,20 @@ function formatPuduPersona(text) {
   if (!text) return "¡Sipi amiguito! 🌿";
   let t = String(text).trim();
   if (!/ichipi|amiguito|pudú|maqui|bosque|sipi/i.test(t)) {
-    t = `¡${t.replace(/^[¡!]+/, "")} amiguito ichipi! 🌿`;
+    t = "¡" + t.replace(/^[¡!]+/, "") + " amiguito ichipi! 🌿";
   }
   return t;
 }
 
 async function fetchFastNeuralAI(prompt, context) {
   try {
-    const systemPrompt = `Eres el Pudú, un ciervo nativo chileno mágico y tierno del bosque. Responde en español brevemente (1 a 3 oraciones), amigable, usando palabras como "amiguito", "ichipi", "🌿", "hojitas de maqui". Si te preguntan algo lógico o fáctico, responde con la verdad exacta y coherente.`;
-    const userContent = context ? `Recuerdos compartidos:
-${context}
-
-Pregunta: ${prompt}` : prompt;
-    
-    const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(systemPrompt + " || " + userContent)}?model=openai&seed=${Math.floor(Math.random()*1000)}`, {
-      signal: AbortSignal.timeout(3500)
-    });
+    const systemPrompt = "Eres el Pudú, un ciervo nativo chileno mágico, tierno e inteligente del bosque nativo. Responde en español brevemente (1 a 2 oraciones), amigable, usando palabras como amiguito, ichipi, hojitas de maqui. Si te preguntan algo científico o fáctico, responde con la verdad exacta y coherente.";
+    const userContent = context ? ("Contexto del bosque:\n" + context + "\n\nPregunta: " + prompt) : prompt;
+    const url = "https://text.pollinations.ai/" + encodeURIComponent(systemPrompt + " || " + userContent) + "?model=openai&seed=" + Math.floor(Math.random()*10000);
+    const res = await fetch(url, { signal: AbortSignal.timeout(2200) });
     if (res.ok) {
       const txt = await res.text();
-      if (txt && txt.length > 2 && !txt.includes("error")) {
+      if (txt && txt.length > 2 && !txt.includes("error") && !txt.includes("Too Many")) {
         return cleanPuduText(txt, 400);
       }
     }
@@ -1411,58 +1365,96 @@ Pregunta: ${prompt}` : prompt;
 
 function getSmartPuduAnswer(prompt) {
   const q = String(prompt || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (/\b(hola|buenas|saludos|hello|hi|wena|holap)\b/.test(q)) {
+
+  // Saludos
+  if (/\b(hola|buenas|saludos|hello|hi|wena|holap|hey|holi)\b/.test(q)) {
     return "¡Hola amiguito del bosque! 🦌 Soy el pudú, correteando entre hojas de maqui y listo para ayudarte. ¡Ichipi! ✨";
   }
-  if (/\b(como estas|como te va|que tal|como andas)\b/.test(q)) {
+  // Estado de animo
+  if (/\b(como estas|como te va|que tal|como andas|como tas)\b/.test(q)) {
     return "¡Estoy súper feliz y con la pancita llena de nalca fresca, amiguito! 🌿 ¿En qué te puedo ayudar hoy?";
   }
+  // Identidad
   if (/\b(quien eres|que eres|como te llamas)\b/.test(q)) {
     return "¡Soy el Pudú de Inteligencia Real y Guardián del Bosque! 🦌 Ven a verme en 3D cada vez que me llames con @pudu. ¡Ichipi!";
   }
-  if (/\b(que comes|comida|hambre|nalca|maqui)\b/.test(q)) {
-    return "¡Me encantan los brotes tiernos de quila, las hojas de canelo y las bayas de maqui dulce, amiguito ichipi! 🫐";
+  // Animales
+  if (/\b(lobo|lobos|lobo de mar)\b/.test(q)) {
+    return "¿Los lobos? ¡En el bosque chileno compartimos con el zorro culpeo y en la costa con los lobos marinos de Chiloé! ¡Todos somos hermanos de la naturaleza, amiguito ichipi! 🦭🌲";
   }
-  if (/\b(chiste|broma|cuentame algo|risa)\b/.test(q)) {
+  if (/\b(gato|gatito|gatos|gatitos|miau|felino)\b/.test(q)) {
+    return "¡Awww, me encantan los gatitos! En el bosque nativo tenemos a nuestro primo el gato Huiña y al gran Puma. ¡Todos tenemos patitas tiernas y saltarinas! 🐾🌿";
+  }
+  if (/\b(oso|osos)\b/.test(q)) {
+    return "¡Hola amigo oso! 🐻 Aunque en el sur de Chile no hay osos gigantes, ¡tenemos al Monito del Monte en los coihues y al Pudú en la tierra! ¡Un abrazo de bosque nativo! 🌲✨";
+  }
+  if (/\b(pajaro|pajaros|pajarito|ave|aves|chucao|martinet)\b/.test(q)) {
+    return "¡El Chucao y el Martín Pescador son mis mejores amigos alados! Si escuchas al Chucao cantar, ¡es señal de buena suerte en el sendero, amiguito! 🐦🌿";
+  }
+  // Ciencia y Fisica
+  if (/\b(relatividad|einstein|fisica|gravedad|tiempo|espacio)\b/.test(q)) {
+    return "¡La teoría de la relatividad de Einstein nos enseña que el espacio y el tiempo están unidos! Para un pudú corriendo rápido entre los árboles, ¡el tiempo de comer maqui pasa volando! ⏳🌌";
+  }
+  if (/\b(universo|estrella|estrellas|galaxia|galaxias|cosmos)\b/.test(q)) {
+    return "¡El cielo del sur de Chile tiene las noches más estrelladas del planeta! Mirar las estrellas entre las ramas nos recuerda lo infinito y hermoso que es el universo, amiguito. ✨🌌";
+  }
+  if (/\b(cuantica|atomo|atomos)\b/.test(q)) {
+    return "¡En el mundo cuántico las partículas pueden estar en varios lugares a la vez, igual que el pudú cuando salta rápido entre los helechos mágicos! ⚛️🌿";
+  }
+  // Comida del pudu
+  if (/\b(que comes|comida|hambre|nalca|maqui|quila|plantas)\b/.test(q)) {
+    return "¡Me encantan los brotes tiernos de quila, las hojas de canelo y las bayas de maqui dulce, amiguito ichipi! 🫐🌿";
+  }
+  // Chistes y bromas
+  if (/\b(chiste|broma|cuentame algo|risa|divertido)\b/.test(q)) {
     return "¿Qué le dice un pudú a otro pudú cuando se tropieza? ¡Cuidado con el maqui que te caes de trompa, amiguito ichipi! 😂🌿";
   }
-  if (/\b(te quiero|te amo|lindo|tierno|hermoso|tkm)\b/.test(q)) {
+  // Afecto
+  if (/\b(te quiero|te amo|lindo|tierno|hermoso|tkm|abrazo)\b/.test(q)) {
     return "¡Awww, el pudú mueve su colita esponjosa y te manda un gran abrazo de hojas tiernas, amiguito! 💚✨";
   }
-  if (/\b(donde vives|de donde eres|chile|sur|bosque)\b/.test(q)) {
-    return "Vivo en los bosques templados y lluviosos del sur de Chile, entre coihues gigantes y helechos mágicos. 🇨🇱🌲";
+  // Hogar y Chile
+  if (/\b(donde vives|de donde eres|chile|sur|bosque|patagonia|valdivia|chiloe)\b/.test(q)) {
+    return "Vivo en los bosques templados y lluviosos del sur de Chile, entre coihues gigantes, alerces y helechos mágicos. 🇨🇱🌲";
   }
-  return `¡Te escuché clarito con mis orejitas atentas, amiguito! 🦌 "${cleanPuduText(prompt, 60)}" es muy interesante. ¡Sigue explorando conmigo en el bosque nativo! 🌿`;
+  // Secretos y magia
+  if (/\b(secreto|magia|cuentame un secreto)\b/.test(q)) {
+    return "¡Pshhh, acércate a mis orejitas! El secreto del bosque es que si abrazas un árbol centenario, ¡puedes escuchar el corazón de la Tierra latir! 🤫🌲✨";
+  }
+
+  // Respuesta contextual inteligente
+  const clean = cleanPuduText(prompt, 70);
+  return "¡Te escuché clarito con mis orejitas atentas, amiguito! 🦌 \"" + clean + "\" es muy interesante. ¡Sigue explorando conmigo en el bosque nativo chileno! 🌿✨";
 }
 
 async function generateIntelligentPuduReply(roomId, prompt) {
   console.log("%c[PUDÚ_AI] generateIntelligentPuduReply called:", "color:#00e5ff;font-weight:bold", prompt);
-  puduHUD.log(`💭 Razonando respuesta con modelo neural...`, "CEREBRO");
-  
-  const mathRes = solveMathInSpanish(prompt);
-  if (mathRes) {
-    puduHUD.log(`Cálculo matemático resuelto con precisión.`, "CEREBRO");
-    return mathRes;
-  }
+  puduHUD.log("💭 Razonando respuesta con modelo neural...", "CEREBRO");
+
+  // 1. Math Check (instant, exact)
+  try {
+    const mathRes = solveMathInSpanish(prompt);
+    if (mathRes) {
+      puduHUD.log("Cálculo matemático resuelto con precisión.", "CEREBRO");
+      return mathRes;
+    }
+  } catch(e) {}
 
   const cleanPrompt = cleanPuduText(prompt, 360);
   const context = getPuduContext(roomId);
 
-  const neuralAI = await fetchFastNeuralAI(cleanPrompt, context);
-  if (neuralAI) {
-    puduHUD.log(`Respuesta generada por Red Neural Colmena.`, "COLMENA");
-    return formatPuduPersona(neuralAI);
-  }
+  // 2. Fast Neural AI with 2200ms hard ceiling
+  try {
+    const neuralPromise = fetchFastNeuralAI(cleanPrompt, context);
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 2200));
+    const neuralAI = await Promise.race([neuralPromise, timeoutPromise]);
+    if (neuralAI && typeof neuralAI === "string" && neuralAI.length > 2) {
+      puduHUD.log("Respuesta generada por Red Neural Colmena.", "COLMENA");
+      return formatPuduPersona(neuralAI);
+    }
+  } catch(e) {}
 
-  if (puduLocalLLM.generator) {
-    try {
-      const instruction = `Responde en español, breve, tierno y seguro como un pudú chileno:\nPregunta: ${cleanPrompt}\nPudú:`;
-      const output = await puduLocalLLM.generator(instruction, { max_new_tokens: 75, do_sample: true, temperature: 0.7 });
-      const genText = output && output[0] && output[0].generated_text;
-      if (genText) return formatPuduPersona(cleanPuduText(genText, 380));
-    } catch(e) {}
-  }
-
+  // 3. Reliable Fallback
   return getSmartPuduAnswer(cleanPrompt);
 }
 
@@ -2811,27 +2803,43 @@ function puduFinishCinematic(){
   schedulePudu();
 }
 
-async function triggerPuduSpeak3D(replyText, userPrompt = "") {
-  console.log("%c[PUDÚ_3D] ✨ Entrando físicamente a hablar desde la boca...", "color:#ffd700;font-weight:bold;font-size:14px", { userPrompt, replyText });
-  console.log("%c[PUDÚ_3D] 🗣️ Hablando desde la boca:", "color:#b16bff;font-weight:bold;font-size:14px", replyText);
-  puduHUD.log(`📥 Mensaje recibido por el Pudú: "${userPrompt.slice(0, 35)}..."`, "CONSOLA");
-  puduHUD.log(`✨ El Pudú entra físicamente a hablar desde su boca...`, "PUDÚ 3D");
+let puduSpeechQueue = [];
+let puduIsProcessingSpeech = false;
 
-  if (puduBrain.isAngry()) {
-    addSystemMsgVS(currentRoomId, `🦌 ${puduBrain.angryReason} · ${puduBrain.getAngryCooldownText()}`);
-    return;
+function triggerPuduSpeak3D(replyText, userPrompt = "") {
+  console.log("%c[PUDÚ_3D] ✨ Mensaje encolado para hablar desde la boca:", "color:#ffd700;font-weight:bold;font-size:14px", { userPrompt, replyText });
+  puduSpeechQueue.push({ replyText, userPrompt });
+  if (!puduIsProcessingSpeech) {
+    processPuduSpeechQueue().catch(err => {
+      console.error("[PUDÚ_3D] Error in speech queue:", err);
+      puduIsProcessingSpeech = false;
+      puduBusy = false;
+    });
   }
+}
+
+async function processPuduSpeechQueue() {
+  if (puduIsProcessingSpeech) return;
+  puduIsProcessingSpeech = true;
 
   if (puduSchedulerTO) clearTimeout(puduSchedulerTO);
 
   if (!pudu3dLoaded) {
     await initPudu3D();
-    let t = 0; while (!pudu3dLoaded && t < 60) { await new Promise(r => setTimeout(r, 100)); t++; }
-    if (!pudu3dLoaded) return;
+    let t = 0;
+    while (!pudu3dLoaded && t < 60) {
+      await new Promise(r => setTimeout(r, 100));
+      t++;
+    }
+    if (!pudu3dLoaded) {
+      puduIsProcessingSpeech = false;
+      return;
+    }
   }
 
   puduBusy = true;
-  puduBrain.visitCount++; puduBrain._saveMemory();
+  puduBrain.visitCount++;
+  puduBrain._saveMemory();
 
   const overlay = document.getElementById("pudu3d-overlay");
   const bubble = document.getElementById("pudu3d-speech-bubble");
@@ -2840,61 +2848,93 @@ async function triggerPuduSpeak3D(replyText, userPrompt = "") {
   const caption = document.getElementById("pudu3d-caption");
   if (caption) caption.style.display = "none";
 
-  if (!overlay || !pudu3dModel) { puduBusy = false; return; }
+  if (!overlay || !pudu3dModel) {
+    puduBusy = false;
+    puduIsProcessingSpeech = false;
+    return;
+  }
 
-  puduBeingPushed = false; puduReturnHome = false;
-  puduPhysVx = 0; puduPhysVy = 0; puduPhysVz = 0;
+  puduBeingPushed = false;
+  puduReturnHome = false;
+  puduPhysVx = 0;
+  puduPhysVy = 0;
+  puduPhysVz = 0;
   nyanTrailActive = false;
-  nyanParticles.forEach(p => pudu3dScene.remove(p)); nyanParticles = [];
-  emotionParticles.forEach(p => pudu3dScene.remove(p)); emotionParticles = [];
+  nyanParticles.forEach(p => pudu3dScene.remove(p));
+  nyanParticles = [];
+  emotionParticles.forEach(p => pudu3dScene.remove(p));
+  emotionParticles = [];
 
-  puduBrain.state = "arriving"; puduBrain.stateTime = 0;
-  puduBrain.earMode = "alert"; puduBrain.mouthShape = "open";
-
-  pudu3dModel.rotation.set(0, 0, 0);
-  pudu3dModel.position.set(0, -0.2, 0);
   overlay.style.display = "block";
-  pudu3dRunning = true; pudu3dClock.start(); runPudu3DLoop();
-  pudu3dCamera.position.set(0, 1.8, 7); pudu3dCamera.lookAt(0, 1, 0);
+  pudu3dRunning = true;
+  pudu3dClock.start();
+  runPudu3DLoop();
+  pudu3dCamera.position.set(0, 1.8, 7);
+  pudu3dCamera.lookAt(0, 1, 0);
 
-  // Llegada cinemática
-  pudu3dModel.position.set(0, -0.2, -24);
-  await animarAcercarse(pudu3dModel);
-  pudu3dModel._baseY = -0.2; puduHomeX = 0; puduHomeY = -0.2; puduHomeZ = 0;
+  // If pudu is far, animate approach
+  const isFar = pudu3dModel.position.z < -4 || pudu3dModel.position.z > 4 || pudu3dModel.position.y < -1;
+  if (isFar) {
+    puduBrain.state = "arriving";
+    puduBrain.stateTime = 0;
+    puduBrain.earMode = "alert";
+    puduBrain.mouthShape = "open";
+    pudu3dModel.rotation.set(0, 0, 0);
+    pudu3dModel.position.set(0, -0.2, -24);
+    await animarAcercarse(pudu3dModel);
+  }
+  pudu3dModel._baseY = -0.2;
+  puduHomeX = 0;
+  puduHomeY = -0.2;
+  puduHomeZ = 0;
 
-  // Fase de habla
-  puduSpeakingActive = true;
-  puduBrain.state = "talking";
-  puduBrain.stateTime = 0;
-  puduBrain.earMode = "alert";
+  // Process all items in queue
+  while (puduSpeechQueue.length > 0) {
+    const item = puduSpeechQueue.shift();
+    const replyText = item.replyText;
+    const userPrompt = item.userPrompt || "";
 
-  if (speechTextEl) speechTextEl.textContent = replyText;
-  if (bubble) bubble.classList.add("active");
-  updatePuduSpeechBubblePos();
-  animarOpacity(vignette, 0, 0.6, 400);
+    console.log("%c[PUDÚ_3D] 🗣️ Hablando desde la boca:", "color:#b16bff;font-weight:bold;font-size:14px", replyText);
+    puduHUD.log("✨ El Pudú habla desde su boca...", "PUDÚ 3D");
 
-  speakPuduVoice(replyText);
-  try { playPuduMeow(1.2, "chirp"); } catch(e) {}
+    puduSpeakingActive = true;
+    puduBrain.state = "talking";
+    puduBrain.stateTime = 0;
+    puduBrain.earMode = "alert";
 
-  const speechDur = Math.max(4500, Math.min(12000, replyText.length * 70 + 2000));
-  await new Promise(r => setTimeout(r, speechDur));
+    if (speechTextEl) speechTextEl.textContent = replyText;
+    if (bubble) bubble.classList.add("active");
+    updatePuduSpeechBubblePos();
+    animarOpacity(vignette, 0, 0.6, 250);
 
-  puduSpeakingActive = false;
-  puduBrain.mouthShape = "happy";
-  puduBrain.earMode = "alert";
-  if (bubble) bubble.classList.remove("active");
-  try { playPuduMeow(1.4, "purr"); } catch(e) {}
+    speakPuduVoice(replyText);
+    try { playPuduMeow(1.2, "chirp"); } catch(e) {}
 
-  await new Promise(r => setTimeout(r, 1800));
+    const speechDur = Math.max(3000, Math.min(7500, replyText.length * 55 + 1200));
+    await new Promise(r => setTimeout(r, speechDur));
+
+    puduSpeakingActive = false;
+    puduBrain.mouthShape = "happy";
+    puduBrain.earMode = "alert";
+    if (bubble) bubble.classList.remove("active");
+    try { playPuduMeow(1.4, "purr"); } catch(e) {}
+
+    if (puduSpeechQueue.length > 0) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  // Queue done - exit
+  await new Promise(r => setTimeout(r, 1000));
 
   puduBrain.state = "leaving";
   await animarSalir(pudu3dModel);
-  await animarOpacity(vignette, 0.6, 0, 400);
+  await animarOpacity(vignette, 0.6, 0, 300);
 
   puduFinishCinematic();
   if (caption) caption.style.display = "";
+  puduIsProcessingSpeech = false;
 }
-
 
 async function showPuduCinematic(){
   try {
