@@ -200,7 +200,7 @@ canvas{position:fixed;inset:0;z-index:0}
 /* ── CHAT AREA ── */
 .chat-area{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
 .chat-header{
-  position:relative;z-index:20;background:rgba(10,14,25,.95);
+  position:relative;z-index:600;background:rgba(10,14,25,.95);
   border-bottom:1px solid transparent;background-clip:padding-box;
   padding:12px 18px 12px 58px;display:flex;align-items:center;gap:12px;
   backdrop-filter:blur(28px);flex-shrink:0;
@@ -313,7 +313,7 @@ canvas{position:fixed;inset:0;z-index:0}
 
 /* ── INPUT AREA ── */
 .chat-input-area{
-  position:relative;z-index:20;background:rgba(10,14,25,.95);
+  position:relative;z-index:600;background:rgba(10,14,25,.95);
   border-top:1px solid rgba(0,229,255,.2);
   padding:14px 18px;display:flex;gap:12px;align-items:flex-end;
   backdrop-filter:blur(28px);flex-shrink:0;
@@ -435,7 +435,7 @@ canvas{position:fixed;inset:0;z-index:0}
   display: flex;
   flex-direction: column;
   gap: 6px;
-  z-index: 20;
+  z-index: 600;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
@@ -1492,8 +1492,9 @@ function speakPuduVoice(text) {
     window.speechSynthesis.cancel();
     const cleanSpeech = text.replace(/[\u{1F300}-\u{1F9FF}]/gu, "").replace(/[#*_~`]/g, "").trim();
     const utterance = new SpeechSynthesisUtterance(cleanSpeech);
-    utterance.pitch = 1.65;
-    utterance.rate = 1.15;
+    utterance.pitch = 2.0;
+    utterance.rate = 1.0;
+    utterance.volume = 0.92;
     utterance.lang = "es-CL";
     const voices = window.speechSynthesis.getVoices();
     const esVoice = voices.find(v => v.lang.startsWith("es-CL") || v.lang.startsWith("es") || v.lang.includes("Spanish"));
@@ -2031,6 +2032,7 @@ function buildProceduralPudu(){
   const eyeWhiteMat=new THREE.MeshBasicMaterial({color:0xffffff});
   P.eyeWhiteL=new THREE.Mesh(eyeWhiteGeo,eyeWhiteMat);P.eyeWhiteL.position.set(-0.17,0.12,0.34);headGroup.add(P.eyeWhiteL);
   P.eyeWhiteR=new THREE.Mesh(eyeWhiteGeo,eyeWhiteMat.clone());P.eyeWhiteR.position.set(0.17,0.12,0.34);headGroup.add(P.eyeWhiteR);
+headGroup.add(P.eyeWhiteL);headGroup.add(P.eyeWhiteR);
 
   // Iris
   const irisGeo=new THREE.SphereGeometry(0.075,seg-3,seg-3);
