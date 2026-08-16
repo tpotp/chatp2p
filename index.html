@@ -11,7 +11,7 @@
 /* ── PUDÚ 3D OVERLAY ── */
 #pudu-mode-toggle{display:none!important}
 #pudu3d-overlay{
-  position:fixed;inset:0;z-index:500;pointer-events:none;
+  position:fixed;top:0;left:0;right:0;bottom:70px;z-index:500;pointer-events:none;
   overflow:hidden;display:none;
 }
 #pudu3d-canvas{
@@ -20,7 +20,7 @@
   pointer-events:none;
 }
 #pudu3d-caption{
-  position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+  position:absolute;bottom:30px;left:50%;transform:translateX(-50%);
   font-family:'Fredoka One', cursive; font-size:clamp(20px, 4.5vw, 36px); letter-spacing:3px;
   color:#fff; text-shadow: 0 0 20px #00e5ff, 0 0 40px #b16bff, 2px 2px 0 #000;
   white-space:nowrap; opacity:0; pointer-events:none; text-transform:uppercase;
@@ -1436,6 +1436,7 @@ function getSmartPuduAnswer(prompt) {
 }
 
 async function generateIntelligentPuduReply(roomId, prompt) {
+  console.log("%c[PUDÚ_AI] generateIntelligentPuduReply called:", "color:#00e5ff;font-weight:bold", prompt);
   puduHUD.log(`💭 Razonando respuesta con modelo neural...`, "CEREBRO");
   
   const mathRes = solveMathInSpanish(prompt);
@@ -1519,7 +1520,7 @@ function invokePudu(roomId, triggerId, prompt) {
   if (puduLocalLLM.state === "idle") startPuduLocalLLM().catch(() => {});
 
   generateIntelligentPuduReply(roomId, prompt).then(reply => {
-    if (!reply) return;
+    if (!reply) reply = getSmartPuduAnswer(prompt);
     const replyId = `pudu-reply-${triggerId}`;
     const p2pMsg = {
       type: "pudu-reply",
@@ -1628,7 +1629,7 @@ window.sendMessage=function(){
   addMsgToVS(currentRoomId,msgId,myName,txt,true,Date.now());
   try{add3DText(txt,true);spawnStars(innerWidth-80,innerHeight-80);spawnRipple(innerWidth-80,innerHeight-80);playSendSound();}catch(e){}
   if(mentionsPudu(txt))setTimeout(()=>invokePudu(currentRoomId,msgId,txt),220);
-  if(sent===0)addSystemMsgVS(currentRoomId,mentionsPudu(txt)?'🦌 No hay peers P2P ahora, pero puedes conversar igual con el pudú local.':'⚠️ Sin peers P2P. Intenta nuevamente.');
+  if(sent===0)addSystemMsgVS(currentRoomId,mentionsPudu(txt)?'🦌 No hay peers P2P ahora, pero puedes conversar igual con el pudú.':'⚠️ Sin peers P2P. Intenta nuevamente.');
   inp.value='';inp.style.height='auto';
 };
 
@@ -2987,7 +2988,7 @@ function schedulePudu(){
     return;
   }
   // Random interval: 20-40 seconds between visits
-  const interval=20000+Math.random()*20000;
+  const interval=45000+Math.random()*45000;
   puduSchedulerTO=setTimeout(()=>showPuduCinematic(),interval);
 }
 function schedulePuduEntry(){setTimeout(()=>{initPudu3D().then(()=>setTimeout(()=>showPuduCinematic(),2500));},1500);}
